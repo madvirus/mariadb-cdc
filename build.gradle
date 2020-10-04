@@ -1,0 +1,50 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'java-library-distribution'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+group = "com.github.madvirus"
+version = '0.10.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("com.zendesk:mysql-binlog-connector-java:0.23.2")
+    implementation("org.mariadb.jdbc:mariadb-java-client:2.7.0")
+    implementation("org.slf4j:slf4j-api:1.7.30")
+
+    testImplementation(platform('org.junit:junit-bom:5.7.0'))
+    testImplementation('org.junit.jupiter:junit-jupiter')
+    testImplementation("org.assertj:assertj-core:3.17.2")
+    testImplementation("org.mockito:mockito-core:3.3.3")
+    testImplementation("org.testcontainers:testcontainers:1.14.3")
+    testImplementation("org.testcontainers:mariadb:1.14.3")
+    testImplementation "org.testcontainers:junit-jupiter:1.14.3"
+}
+
+test {
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}

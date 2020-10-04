@@ -1,0 +1,4 @@
+[mysqld]
+log-bin=mariadb-bin
+binlog_format = row
+binlog_row_image = minimal
