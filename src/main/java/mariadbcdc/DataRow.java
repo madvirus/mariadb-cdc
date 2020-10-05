@@ -18,4 +18,8 @@ public interface DataRow {
     LocalTime getLocalTime(String field);
 
     Boolean getBoolean(String field);
+
+    boolean hasTableColumnNames();
+
+    int getColumnCount();
 }

@@ -25,5 +25,4 @@ public class JdbcColumnNamesGetterTest {
         List<String> cols = getter.getColumnNames("test", "member");
         assertThat(cols).contains("id", "name", "email", "use_yn", "reg");
     }
-
 }

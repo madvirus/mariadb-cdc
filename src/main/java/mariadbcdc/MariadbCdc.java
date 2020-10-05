@@ -1,7 +1,5 @@
 package mariadbcdc;
 
-import com.github.shyiko.mysql.binlog.BinaryLogClient;
-import com.github.shyiko.mysql.binlog.event.deserialization.EventDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,9 +17,11 @@ public class MariadbCdc {
     private MariadbCdcListener listener = MariadbCdcListener.NO_OP;
     private MariadbCdcConfig config;
     private ColumnNamesGetter columnNamesGetter;
-    private BinaryLogClient client;
 
     private ColumnNameCache columnNameCache;
+
+    private BinaryLogWrapperFactory wrapperFactory = new DefaultBinaryLogWrapperFactory();
+    private BinaryLogWrapper wrapper;
 
     public MariadbCdc(MariadbCdcConfig config) {
         this(config, ColumnNamesGetter.NULL);
@@ -39,43 +39,22 @@ public class MariadbCdc {
     }
 
     public void start() {
-        BinaryLogClient client = new BinaryLogClient(
-                config.getHost(), config.getPort(),
-                config.getUser(), config.getPassword());
-
         createBinlogPositionFileIfNoExists();
         BinlogPosition lastBinPos = getSavedBinlogPosition();
-        if (lastBinPos != null) {
-            client.setBinlogFilename(lastBinPos.getFilename());
-            client.setBinlogPosition(lastBinPos.getPosition());
+
+        BinaryLogWrapper wrapper = createWrapper(lastBinPos);
+        wrapper.start();
+        if (wrapper.isStarted()) {
+            this.wrapper = wrapper;
         }
-        EventDeserializer eventDeserializer = new EventDeserializer();
-        eventDeserializer.setCompatibilityMode(
-                EventDeserializer.CompatibilityMode.DATE_AND_TIME_AS_LONG
-        );
-        client.setEventDeserializer(eventDeserializer);
-        client.registerLifecycleListener(new BinaryLogClient.AbstractLifecycleListener() {
-            @Override
-            public void onConnect(BinaryLogClient client) {
-                logger.info("mariadbCdc started : " + config.getUser() + "@" + config.getHost() + ":" + config.getPort());
-                MariadbCdc.this.client = client;
-                listener.started(new BinlogPosition(client.getBinlogFilename(), client.getBinlogPosition()));
-            }
-        });
+    }
 
-        client.registerEventListener(createBinaryLogEventProcessor(client));
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    client.connect();
-                } catch (Exception e) {
-                    logger.error("mariadbCdc start failed : " + e.getMessage());
-                    listener.startFailed(e);
-                }
-            }
-        }).start();
+    private BinaryLogWrapper createWrapper(BinlogPosition lastBinPos) {
+        return wrapperFactory.create(config, lastBinPos,
+                listener,
+                this::saveBinlogPosition,
+                this::getColumnNames,
+                this::schemaChanged);
     }
 
     private void createBinlogPositionFileIfNoExists() {
@@ -121,33 +100,15 @@ public class MariadbCdc {
         return null;
     }
 
-    private BinaryLogEventProcessor createBinaryLogEventProcessor(BinaryLogClient client) {
-        BinaryLogEventProcessor processor = new BinaryLogEventProcessor(
-                this.listener,
-                new CurrentBinlogFilenameGetter() {
-                    @Override
-                    public String getCurrentBinlogFilename() {
-                        return client.getBinlogFilename();
-                    }
-                },
-                new BinlogPositionSaver() {
-                    @Override
-                    public void save(BinlogPosition binPos) {
-                        try {
-                            Path path = Paths.get(config.getPositionTraceFile());
-                            Files.write(path, Arrays.asList(binPos.getStringFormat()), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-                            logger.debug("saved binary log position: {}", binPos.getStringFormat());
-                        } catch (Exception ex) {
-                            logger.error("fail to save binary log position: " + ex.getMessage(), ex);
-                            throw new RuntimeException("fail to save binary log position: " + ex.getMessage(), ex);
-                        }
-                    }
-                },
-                this::getColumnNames,
-                this::schemaChanged);
-        processor.setIncludeFilters(config.getIncludeFilters());
-        processor.setExcludeFilters(config.getExcludeFilters());
-        return processor;
+    private void saveBinlogPosition(BinlogPosition binPos) {
+        try {
+            Path path = Paths.get(config.getPositionTraceFile());
+            Files.write(path, Arrays.asList(binPos.getStringFormat()), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            logger.debug("saved binary log position: {}", binPos.getStringFormat());
+        } catch (Exception ex) {
+            logger.error("fail to save binary log position: " + ex.getMessage(), ex);
+            throw new RuntimeException("fail to save binary log position: " + ex.getMessage(), ex);
+        }
     }
 
     private List<String> getColumnNames(String database, String table) {
@@ -159,14 +120,8 @@ public class MariadbCdc {
     }
 
     public void stop() {
-        if (client != null) {
-            try {
-                client.disconnect();
-                logger.info("mariadbCdc stopped : " + config.getUser() + "@" + config.getHost() + ":" + config.getPort());
-                this.listener.stopped();
-            } catch (IOException e) {
-                throw new MariadbCdcStopFailException(e);
-            }
+        if (wrapper != null) {
+            wrapper.stop();
         }
     }
 

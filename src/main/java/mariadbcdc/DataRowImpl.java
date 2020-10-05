@@ -12,6 +12,7 @@ import java.util.Map;
 
 public class DataRowImpl implements DataRow {
     private Map<String, Serializable> values = new HashMap<>();
+    private boolean hasTableColumnNames;
 
     @Override
     public String getString(String field) {
@@ -81,6 +82,16 @@ public class DataRowImpl implements DataRow {
         throw new UnsupportedTypeException("not supported type: " + field.getClass().getName());
     }
 
+    @Override
+    public boolean hasTableColumnNames() {
+        return hasTableColumnNames;
+    }
+
+    @Override
+    public int getColumnCount() {
+        return values.size();
+    }
+
     public void add(String colName, ColumnType columnType, Serializable value) {
         if (value == null) values.put(colName.toLowerCase(), value);
         else {
@@ -125,4 +136,7 @@ public class DataRowImpl implements DataRow {
         }
     }
 
+    public void setHasTableColumnNames(boolean hasTableColumnNames) {
+        this.hasTableColumnNames = hasTableColumnNames;
+    }
 }

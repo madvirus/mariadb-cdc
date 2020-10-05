@@ -3,7 +3,6 @@ package mariadbcdc;
 import java.util.Collections;
 import java.util.List;
 
-@FunctionalInterface
 public interface ColumnNamesGetter {
     ColumnNamesGetter NULL = new NullColumnNamesGetter();
 

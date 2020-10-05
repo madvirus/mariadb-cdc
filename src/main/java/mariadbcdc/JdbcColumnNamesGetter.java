@@ -46,4 +46,5 @@ public class JdbcColumnNamesGetter implements ColumnNamesGetter {
             return Collections.emptyList();
         }
     }
+
 }

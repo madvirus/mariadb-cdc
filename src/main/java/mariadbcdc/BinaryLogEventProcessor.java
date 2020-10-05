@@ -57,48 +57,66 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
             binlogPositionSaver.save(new BinlogPosition(r.getBinlogFilename(), r.getBinlogPosition()));
             return;
         }
-        if (data instanceof TableMapEventData) {
-            TableMapEventData tableData = (TableMapEventData) data;
-            database = tableData.getDatabase();
-            table = tableData.getTable();
-            columnTypes = tableData.getColumnTypes();
+        try {
+            if (data instanceof QueryEventData) {
+                handleQueryEventData((QueryEventData) data);
+            }
+            if (data instanceof TableMapEventData) {
+                TableMapEventData tableData = (TableMapEventData) data;
+                database = tableData.getDatabase();
+                table = tableData.getTable();
+                columnTypes = tableData.getColumnTypes();
 
-            columnNamesOfMetadata = Optional.ofNullable(tableData.getEventMetadata())
-                    .map(meta -> meta.getColumnNames())
-                    .filter(col -> !col.isEmpty())
-                    .orElse(null);
-        }
-        if (data instanceof QueryEventData) {
-            handleQueryEventData((QueryEventData)data);
-        }
-        if (data instanceof WriteRowsEventData) {
-            if (rowsEventDataIncluded()) {
-                handleWriteRowsEventData((WriteRowsEventData) data);
+                columnNamesOfMetadata = Optional.ofNullable(tableData.getEventMetadata())
+                        .map(meta -> meta.getColumnNames())
+                        .filter(col -> !col.isEmpty())
+                        .orElse(null);
             }
-        }
-        if (data instanceof UpdateRowsEventData) {
-            if (rowsEventDataIncluded()) {
-                handleUpdateRowsEventData((UpdateRowsEventData) data);
+            if (data instanceof WriteRowsEventData ||
+                    data instanceof UpdateRowsEventData ||
+                    data instanceof DeleteRowsEventData) {
+                if (hasPrecededDatabaseTableName()) {
+                    if (rowsEventDataIncluded()) {
+                        List<String> colNames = getColumnNames();
+                        if (colNames.size() > 0 && colNames.size() != columnTypes.length) {
+                            colNames = Collections.emptyList();
+                        }
+
+                        if (data instanceof WriteRowsEventData) {
+                            handleWriteRowsEventData((WriteRowsEventData) data, colNames);
+                        } else if (data instanceof UpdateRowsEventData) {
+                            handleUpdateRowsEventData((UpdateRowsEventData) data, colNames);
+                        } else if (data instanceof DeleteRowsEventData) {
+                            handleDeleteRowsEventData((DeleteRowsEventData) data, colNames);
+                        }
+                    }
+                }
+                database = null;
+                table = null;
+                columnTypes = null;
+                columnNamesOfMetadata = null;
             }
-        }
-        if (data instanceof DeleteRowsEventData) {
-            if (rowsEventDataIncluded()) {
-                handleDeleteRowsEventData((DeleteRowsEventData) data);
+
+            if (data instanceof XidEventData) {
+                listener.onXid(((XidEventData) data).getXid());
             }
-        }
-        if (data instanceof XidEventData) {
-            listener.onXid(((XidEventData) data).getXid());
-        }
-        if (header instanceof EventHeaderV4) {
-            if (isBinPositionSaveTarget(data)) {
-                EventHeaderV4 hv4 = (EventHeaderV4) header;
-                binlogPositionSaver.save(new BinlogPosition(currentBinlogFilename, hv4.getNextPosition()));
+        } catch (Exception ex) {
+            // ignore listener thrown exception
+            logger.warn("listener thrown exception: " + ex.getMessage(), ex);
+        } finally {
+            if (header instanceof EventHeaderV4) {
+                if (isBinPositionSaveTarget(data)) {
+                    EventHeaderV4 hv4 = (EventHeaderV4) header;
+                    binlogPositionSaver.save(new BinlogPosition(currentBinlogFilename, hv4.getNextPosition()));
+                }
             }
         }
     }
 
     private boolean isBinPositionSaveTarget(EventData data) {
-        return ! (data instanceof FormatDescriptionEventData);
+        if (data instanceof FormatDescriptionEventData) return false;
+        if (data instanceof TableMapEventData) return false;
+        return true;
     }
 
     private void handleQueryEventData(QueryEventData data) {
@@ -117,11 +135,16 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
     }
 
     private List<String> getColumnNames() {
-        return columnNamesOfMetadata != null ? columnNamesOfMetadata : columnNamesGetter.getColumnNames(database, table);
+        return columnNamesOfMetadata != null ? columnNamesOfMetadata :
+                hasPrecededDatabaseTableName() ? columnNamesGetter.getColumnNames(database, table) :
+                        Collections.emptyList();
     }
 
-    private void handleWriteRowsEventData(WriteRowsEventData rowData) {
-        List<String> colNames = getColumnNames();
+    private boolean hasPrecededDatabaseTableName() {
+        return database != null && database.length() > 0 && table != null && table.length() > 0;
+    }
+
+    private void handleWriteRowsEventData(WriteRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
         List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
 
@@ -136,8 +159,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         listener.onDataChanged(rowChangedDataList);
     }
 
-    private void handleUpdateRowsEventData(UpdateRowsEventData rowData) {
-        List<String> colNames = getColumnNames();
+    private void handleUpdateRowsEventData(UpdateRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
         List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
         List<String> incColNamesBeforeUpdate = includedColumnNames(colNames, rowData.getIncludedColumnsBeforeUpdate());
@@ -155,8 +177,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         listener.onDataChanged(rowChangedDataList);
     }
 
-    private void handleDeleteRowsEventData(DeleteRowsEventData rowData) {
-        List<String> colNames = getColumnNames();
+    private void handleDeleteRowsEventData(DeleteRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
         List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
 
@@ -188,15 +209,16 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
 
     private DataRow convertDataRow(List<String> colNames, List<ColumnType> incColTypes, Serializable[] row) {
         DataRowImpl dataRow = new DataRowImpl();
-        for (int i = 0 ; i < row.length ; i++) {
-            dataRow.add(colNames.isEmpty() ? "col" + i : colNames.get(i),
+        for (int i = 0; i < row.length; i++) {
+            dataRow.add(colNames.isEmpty() ? "col" + (i+1) : colNames.get(i),
                     incColTypes.isEmpty() ? null : incColTypes.get(i),
                     row[i]);
         }
+        dataRow.setHasTableColumnNames(colNames.size() > 0);
         return dataRow;
     }
 
-    public void setIncludeFilters(String ... filters) {
+    public void setIncludeFilters(String... filters) {
         this.includeFilters = new HashMap<>();
         if (filters != null) {
             for (String filter : filters) {
@@ -205,7 +227,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         }
     }
 
-    public void setExcludeFilters(String ... filters) {
+    public void setExcludeFilters(String... filters) {
         this.excludeFilters = new HashMap<>();
         if (filters != null) {
             for (String filter : filters) {
