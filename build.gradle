@@ -35,10 +35,17 @@ dependencies {
     testImplementation "org.testcontainers:junit-jupiter:1.14.3"
 }
 
-test {
+def test = tasks.named("test") {
     useJUnitPlatform {
-        excludeTags 'integration'
+        excludeTags "integration"
     }
+}
+
+def integrationTest = tasks.register("integrationTest", Test) {
+    useJUnitPlatform {
+        includeTags "integration"
+    }
+    shouldRunAfter test
 }
 
 publishing {
