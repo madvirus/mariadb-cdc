@@ -20,8 +20,9 @@ CREATE USER cdc@'%' IDENTIFIED BY 'password'
 GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO cdc@'%'
 ```
 
-## Maven Repository
+## Repository
 
+### Maven
 ```xml
 <repositories>
     <repository>
@@ -39,7 +40,19 @@ GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO cdc@'%'
 </dependency>
 ```
 
-## MariadbCdc
+### Gradle
+```
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    implementation 'com.github.madvirus:mariadb-cdc:0.11.0'
+}
+```
+
+## Using MariadbCdc
 
 ### Basic usage
 
@@ -54,6 +67,10 @@ MariadbCdcConfig config = new MariadbCdcConfig(
                 "password", // password
                 "bin.pos"); // bin position trace file
 ```
+
+If no "bin.pos" file exists, read from current binary log position.
+If "bin.pos" file contains binary log position, read from that position.
+MariadbCdc records next position while reading binary log.
 
 #### Step 2, create a MariadbCdc
 
@@ -99,15 +116,15 @@ cdc.setMariadbCdcListener(new MariadbCdcListener() {
             String table = data.getTable(); // get table name of changed row
             DataRow dataRow = data.getDataRow(); // get changed row data
             if (data.getType() == ChangeType.INSERT) {
-                Long id = dataRow.getLong("id"); // get Long value of id field
+                Long id = dataRow.getLong("id"); // get Long value of id column
                 // ...
             } else if (data.getType() == ChangeType.UPDATE) {
-                String name = dataRow.getString("name"); // get String value of updated name field
+                String name = dataRow.getString("name"); // get String value of updated name column
                 DataRow dataRowBeforeUpdate = data.getDataRowBeforeUpdate(); // before image
-                String nameBeforeUpdate = dataRowBeforeUpdate.getString("name"); // get String value of name field before update
+                String nameBeforeUpdate = dataRowBeforeUpdate.getString("name"); // get String value of name column before update
                 // ...
             } else if (data.getType() == ChangeType.DELETE) {
-                String email = dataRow.getString("email"); // get value of email field of deleted row
+                String email = dataRow.getString("email"); // get value of email column of deleted row
                 // ...
             }
         });
@@ -128,11 +145,11 @@ cdc.setMariadbCdcListener(new MariadbCdcListener() {
 #### Step 4, start/stop MariadbCdc
 
 ```java
-cdc.start(); // start listening 
-```
+cdc.start(); // start reading binary log using separate thread 
 
-```java
-cdc.stop(); // stop listening
+...
+
+cdc.stop(); // stop reading
 ```
 
 ### Including/Excluding specific tables
@@ -150,9 +167,9 @@ config.setIncludeFilters("test.user");
 config.setIncludeFilters("test.member");
 ```
 
-### Includes only updated fields
+### Includes only updated columns
 
-To include only updated fields, set binlog_row_image to minimal:
+To include only updated columns, set binlog_row_image to minimal:
 
 ```
 binlog_format = row
@@ -166,8 +183,8 @@ When binlog_row_image is minimal and run the following query:
 update member set name = 'newname' where id = 10
 ```
 
-then RowChangedData#getDataRowBeforeUpdate() returns a DataRow which contains only pk fields,
-and RowChangedData#getDataRow() returns a DataRow which contains only updated fields.
+then RowChangedData#getDataRowBeforeUpdate() returns a DataRow which contains only pk columns,
+and RowChangedData#getDataRow() returns a DataRow which contains only updated columns.
 
 ```java
 @Override
@@ -179,8 +196,8 @@ public void onDataChanged(List<RowChangedData> list) {
         DataRow afterDataRow = data.getDataRow(); // after image
         if (data.getType() == ChangeType.UPDATE) {
             DataRow beforeDataRow = data.getDataRowBeforeUpdate(); // before image
-            Long id = beforeDataRow.getLong("id"); // before image includes only pk fields
-            String name = afterDataRow.getString("name"); // after image includes only updated fields
+            Long id = beforeDataRow.getLong("id"); // before image includes only pk columns
+            String name = afterDataRow.getString("name"); // after image includes only updated columns
             // ...
         }
     });
