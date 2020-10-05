@@ -20,8 +20,7 @@ public class XidEventBuilder {
         return this;
     }
 
-
-    public Event builder() {
+    public Event build() {
         EventHeaderV4 header = new EventHeaderV4();
         header.setEventType(EventType.XID);
         header.setNextPosition(nextPosition);

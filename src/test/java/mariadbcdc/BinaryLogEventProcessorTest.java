@@ -5,6 +5,7 @@ import com.github.shyiko.mysql.binlog.event.deserialization.ColumnType;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -12,7 +13,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 
 class BinaryLogEventProcessorTest {
@@ -141,10 +144,16 @@ class BinaryLogEventProcessorTest {
 
     @Test
     void txid() {
-        processor.onEvent(XidEventBuilder.xid(1L).nextPosition(1L).builder());
+        processor.onEvent(XidEventBuilder.xid(1L).nextPosition(1L).build());
 
         Long lastXid = listener.getLastXid();
         assertThat(lastXid).isEqualTo(1L);
+    }
+
+    @Test
+    void formatDescriptionEvent_doesnt_save_binpos() {
+        processor.onEvent(FormatDescriptionEventBuilder.nextPosition(0L).build());
+        then(this.binlogPositionSaver).should(Mockito.never()).save(any());
     }
 
     @Test

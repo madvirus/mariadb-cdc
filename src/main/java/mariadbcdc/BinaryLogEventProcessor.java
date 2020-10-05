@@ -55,10 +55,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
             RotateEventData r = (RotateEventData) data;
             currentBinlogFilename = r.getBinlogFilename();
             binlogPositionSaver.save(new BinlogPosition(r.getBinlogFilename(), r.getBinlogPosition()));
-        }
-        if (header instanceof EventHeaderV4) {
-            EventHeaderV4 hv4 = (EventHeaderV4) header;
-            binlogPositionSaver.save(new BinlogPosition(currentBinlogFilename, hv4.getNextPosition()));
+            return;
         }
         if (data instanceof TableMapEventData) {
             TableMapEventData tableData = (TableMapEventData) data;
@@ -92,6 +89,16 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         if (data instanceof XidEventData) {
             listener.onXid(((XidEventData) data).getXid());
         }
+        if (header instanceof EventHeaderV4) {
+            if (isBinPositionSaveTarget(data)) {
+                EventHeaderV4 hv4 = (EventHeaderV4) header;
+                binlogPositionSaver.save(new BinlogPosition(currentBinlogFilename, hv4.getNextPosition()));
+            }
+        }
+    }
+
+    private boolean isBinPositionSaveTarget(EventData data) {
+        return ! (data instanceof FormatDescriptionEventData);
     }
 
     private void handleQueryEventData(QueryEventData data) {
