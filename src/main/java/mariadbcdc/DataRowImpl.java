@@ -92,7 +92,7 @@ public class DataRowImpl implements DataRow {
         return values.size();
     }
 
-    public void add(String colName, ColumnType columnType, Serializable value) {
+    public DataRowImpl add(String colName, ColumnType columnType, Serializable value) {
         if (value == null) values.put(colName.toLowerCase(), value);
         else {
             switch (columnType) {
@@ -134,6 +134,7 @@ public class DataRowImpl implements DataRow {
                     values.put(colName.toLowerCase(), value);
             }
         }
+        return this;
     }
 
     public void setHasTableColumnNames(boolean hasTableColumnNames) {
