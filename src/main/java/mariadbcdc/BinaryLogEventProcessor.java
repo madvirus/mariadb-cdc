@@ -81,13 +81,12 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                         if (colNames.size() > 0 && colNames.size() != columnTypes.length) {
                             colNames = Collections.emptyList();
                         }
-
                         if (data instanceof WriteRowsEventData) {
-                            handleWriteRowsEventData((WriteRowsEventData) data, colNames);
+                            handleWriteRowsEventData(header, (WriteRowsEventData) data, colNames);
                         } else if (data instanceof UpdateRowsEventData) {
-                            handleUpdateRowsEventData((UpdateRowsEventData) data, colNames);
+                            handleUpdateRowsEventData(header, (UpdateRowsEventData) data, colNames);
                         } else if (data instanceof DeleteRowsEventData) {
-                            handleDeleteRowsEventData((DeleteRowsEventData) data, colNames);
+                            handleDeleteRowsEventData(header, (DeleteRowsEventData) data, colNames);
                         }
                     }
                 }
@@ -144,7 +143,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         return database != null && database.length() > 0 && table != null && table.length() > 0;
     }
 
-    private void handleWriteRowsEventData(WriteRowsEventData rowData, List<String> colNames) {
+    private void handleWriteRowsEventData(EventHeader header, WriteRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
         List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
 
@@ -153,13 +152,14 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                         ChangeType.INSERT,
                         database,
                         table,
+                        header.getTimestamp(),
                         convertDataRow(incColNames, incColTypes, row)
                 ))
                 .collect(Collectors.toList());
         listener.onDataChanged(rowChangedDataList);
     }
 
-    private void handleUpdateRowsEventData(UpdateRowsEventData rowData, List<String> colNames) {
+    private void handleUpdateRowsEventData(EventHeader header, UpdateRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
         List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
         List<String> incColNamesBeforeUpdate = includedColumnNames(colNames, rowData.getIncludedColumnsBeforeUpdate());
@@ -170,6 +170,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                         ChangeType.UPDATE,
                         database,
                         table,
+                        header.getTimestamp(),
                         convertDataRow(incColNames, incColTypes, row.getValue()),
                         convertDataRow(incColNamesBeforeUpdate, incColTypesBeforeUpdate, row.getKey())
                 ))
@@ -177,7 +178,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         listener.onDataChanged(rowChangedDataList);
     }
 
-    private void handleDeleteRowsEventData(DeleteRowsEventData rowData, List<String> colNames) {
+    private void handleDeleteRowsEventData(EventHeader header, DeleteRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
         List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
 
@@ -186,6 +187,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                         ChangeType.DELETE,
                         database,
                         table,
+                        header.getTimestamp(),
                         convertDataRow(incColNames, incColTypes, row)
                 ))
                 .collect(Collectors.toList());
