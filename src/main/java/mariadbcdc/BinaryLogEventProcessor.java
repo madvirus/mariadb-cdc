@@ -212,7 +212,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
     private DataRow convertDataRow(List<String> colNames, List<ColumnType> incColTypes, Serializable[] row) {
         DataRowImpl dataRow = new DataRowImpl();
         for (int i = 0; i < row.length; i++) {
-            dataRow.add(colNames.isEmpty() ? "col" + (i+1) : colNames.get(i),
+            dataRow.add(colNames.isEmpty() ? "col" + i : colNames.get(i),
                     incColTypes.isEmpty() ? null : incColTypes.get(i),
                     row[i]);
         }

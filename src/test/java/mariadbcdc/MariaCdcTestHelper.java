@@ -203,4 +203,5 @@ public class MariaCdcTestHelper {
             throw new RuntimeException(ex);
         }
     }
+
 }
