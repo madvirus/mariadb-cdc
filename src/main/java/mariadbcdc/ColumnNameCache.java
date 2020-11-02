@@ -3,6 +3,7 @@ package mariadbcdc;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class ColumnNameCache {
     private Map<String, List<String>> colNames = new HashMap<>();
@@ -23,7 +24,13 @@ public class ColumnNameCache {
     }
 
     public void invalidate(String database, String table) {
-        colNames.remove(colNamesKey(database, table));
+        if (database != null && !database.isEmpty()) {
+            colNames.remove(colNamesKey(database, table));
+        } else {
+            colNames.keySet().stream().filter(key -> key.endsWith("." + table))
+                    .collect(Collectors.toList())
+                    .forEach(key -> colNames.remove(key));
+        }
     }
 
     private String colNamesKey(String database, String table) {
