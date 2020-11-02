@@ -36,11 +36,7 @@ public class MariadbCdc_NoColumnNames_Test {
     }
 
     @Test
-    void testSet() {
-        handleInsertedData();
-    }
-
-    void handleInsertedData() {
+    void noColumnNames_When_NoColumnCountsMatch() {
         helper.deleteSavedPositionFile("temp/pos.saved");
         helper.saveCurrentPosition("temp/pos.saved");
 
@@ -67,7 +63,7 @@ public class MariadbCdc_NoColumnNames_Test {
             soft.assertThat(result.get(0).getDatabase()).isEqualTo("test");
             soft.assertThat(result.get(0).getTable()).isEqualTo("member");
             soft.assertThat(result.get(0).getDataRow().hasTableColumnNames()).isFalse();
-            soft.assertThat(result.get(0).getDataRow().getColumnCount()).isEqualTo(3);
+            soft.assertThat(result.get(0).getDataRow().getColumnCount()).isEqualTo(6);
             soft.assertThat(result.get(0).getDataRow().getLong(0)).isNotNull();
             soft.assertThat(result.get(0).getDataRow().getString(1)).isEqualTo("name1");
             soft.assertThat(result.get(0).getDataRow().getString(2)).isEqualTo("email1");
@@ -75,7 +71,7 @@ public class MariadbCdc_NoColumnNames_Test {
             soft.assertThat(result.get(1).getType()).isEqualTo(ChangeType.INSERT);
             soft.assertThat(result.get(1).getDatabase()).isEqualTo("test");
             soft.assertThat(result.get(1).getTable()).isEqualTo("member");
-            soft.assertThat(result.get(0).getDataRow().hasTableColumnNames()).isTrue();
+            soft.assertThat(result.get(1).getDataRow().hasTableColumnNames()).isTrue();
             soft.assertThat(result.get(1).getDataRow().getLong("id")).isNotNull();
             soft.assertThat(result.get(1).getDataRow().getString("name")).isEqualTo("name2");
             soft.assertThat(result.get(1).getDataRow().getString("email")).isEqualTo("email2");

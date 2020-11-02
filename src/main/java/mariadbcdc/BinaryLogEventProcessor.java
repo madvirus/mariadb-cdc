@@ -119,10 +119,12 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
     }
 
     private void handleQueryEventData(QueryEventData data) {
-        AlterQueryDecision decision = QueryDecider.decideAlterQuery(data.getSql());
+        SchemaChangeQueryDecision decision = QueryDecider.decideSchemaChangeQuery(data.getSql());
         if (decision.isAlterQuery()) {
-            String db = decision.hasDatabase() ? decision.getDatabase() : data.getDatabase();
-            schemaChangeListener.onSchemaChanged(new SchemaChangedData(db, decision.getTable()));
+            decision.getDatabaseTableNames()
+                    .forEach(schemaChangedTable -> {
+                        schemaChangeListener.onSchemaChanged(schemaChangedTable);
+                    });
         }
     }
 

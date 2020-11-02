@@ -3,6 +3,6 @@ package mariadbcdc;
 @FunctionalInterface
 public interface SchemaChangeListener {
 
-    void onSchemaChanged(SchemaChangedData schemaChangedData);
+    void onSchemaChanged(SchemaChangedTable schemaChangedTable);
 
 }

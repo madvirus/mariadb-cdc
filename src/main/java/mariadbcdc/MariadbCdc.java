@@ -115,8 +115,8 @@ public class MariadbCdc {
         return columnNameCache.getColumnNames(database, table);
     }
 
-    private void schemaChanged(SchemaChangedData schemaChangedData) {
-        columnNameCache.invalidate(schemaChangedData.getDatabase(), schemaChangedData.getTable());
+    private void schemaChanged(SchemaChangedTable schemaChangedTable) {
+        columnNameCache.invalidate(schemaChangedTable.getDatabase(), schemaChangedTable.getTable());
     }
 
     public void stop() {

@@ -60,7 +60,7 @@ public class MariadbCdc_103_SchemaChange_Test {
                 if (result.get(0).getDataRow().hasTableColumnNames()) {
                     soft.assertThat(result.get(0).getDataRow().getLong("id")).isEqualTo(1L);
                 } else {
-                    soft.assertThat(result.get(0).getDataRow().getLong("col1")).isEqualTo(1L);
+                    soft.assertThat(result.get(0).getDataRow().getLong("col0")).isEqualTo(1L);
                 }
 
                 soft.assertThat(result.get(1).getType()).isEqualTo(ChangeType.INSERT);

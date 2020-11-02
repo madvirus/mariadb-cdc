@@ -204,4 +204,13 @@ public class MariaCdcTestHelper {
         }
     }
 
+    public void runQuery(String query) {
+        try (Connection conn = getConnection();
+             Statement stmt1 = conn.createStatement()
+        ) {
+            stmt1.executeUpdate(query);
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 }
