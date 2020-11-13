@@ -49,10 +49,6 @@ public class QueryDecider {
         Matcher n2nMatcher = renameSubPattern.matcher(queryPart);
         if (n2nMatcher.find()) {
             do {
-                System.out.println(n2nMatcher.groupCount());
-                for (int i = 0; i <= n2nMatcher.groupCount(); i++) {
-                    System.out.println("g" + i + ":" + n2nMatcher.group(i));
-                }
                 String database = n2nMatcher.group(2);
                 String table = n2nMatcher.group(3);
                 tables.add(new SchemaChangedTable(database, table));
