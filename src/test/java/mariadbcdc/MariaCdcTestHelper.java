@@ -13,12 +13,29 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 
 public class MariaCdcTestHelper {
-    private MariaDBContainer mariaDB;
+    private String host;
+    private Integer port;
+    private String rootPassword;
+    private String username;
+    private String password;
+
     private String cdcUser;
     private String cdcPassword;
 
     public MariaCdcTestHelper(MariaDBContainer mariaDB) {
-        this.mariaDB = mariaDB;
+        host = "localhost";
+        port = mariaDB.getMappedPort(3306);
+        rootPassword = mariaDB.getPassword();
+        username = mariaDB.getUsername();
+        password = mariaDB.getPassword();
+    }
+
+    public MariaCdcTestHelper(String host, Integer port, String rootPassword, String username, String password) {
+        this.host = host;
+        this.port = port;
+        this.rootPassword = rootPassword;
+        this.username = username;
+        this.password = password;
     }
 
     public void createCdcUser(String user, String password) {
@@ -57,20 +74,32 @@ public class MariaCdcTestHelper {
 
     public Connection getConnection() throws SQLException {
         return DriverManager.getConnection(
-                "jdbc:mariadb://localhost:" + port() + "/test",
-                mariaDB.getUsername(),
-                mariaDB.getPassword());
+                "jdbc:mariadb://" + host + ":" + port() + "/test",
+                getUsername(),
+                getPassword());
+    }
+
+    private String getUsername() {
+        return username;
     }
 
     public Connection getRootConnection() throws SQLException {
         return DriverManager.getConnection(
-                "jdbc:mariadb://localhost:" + port(),
+                "jdbc:mariadb://" + host + ":" + port(),
                 "root",
-                mariaDB.getPassword());
+                getRootPassword());
+    }
+
+    private String getRootPassword() {
+        return rootPassword;
+    }
+
+    private String getPassword() {
+        return password;
     }
 
     public int port() {
-        return mariaDB.getMappedPort(3306);
+        return port;
     }
 
     public void changeMemberSchema() {
@@ -105,7 +134,7 @@ public class MariaCdcTestHelper {
 
     public MariadbCdcConfig createMariadbCdcConfig(String posFilePath) {
         return new MariadbCdcConfig(
-                "localhost",
+                host,
                 port(),
                 cdcUser(),
                 cdcPassword(),
@@ -199,6 +228,16 @@ public class MariaCdcTestHelper {
              Statement stmt1 = conn.createStatement()
         ) {
             stmt1.executeUpdate("delete from test.user");
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void runQuery(String query) {
+        try (Connection conn = getConnection();
+             Statement stmt1 = conn.createStatement()
+        ) {
+            stmt1.executeUpdate(query);
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         }
