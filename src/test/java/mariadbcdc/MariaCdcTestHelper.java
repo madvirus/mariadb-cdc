@@ -72,6 +72,8 @@ public class MariaCdcTestHelper {
         }
     }
 
+
+
     public Connection getConnection() throws SQLException {
         return DriverManager.getConnection(
                 "jdbc:mariadb://" + host + ":" + port() + "/test",
