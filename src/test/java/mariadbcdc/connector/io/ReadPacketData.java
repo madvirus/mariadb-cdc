@@ -219,4 +219,7 @@ public class ReadPacketData {
         DumpUtil.dumpHex(sb, bytes, 0, packetLength);
     }
 
+    public byte[] getRawBodyBytes() {
+        return bytes;
+    }
 }

@@ -1,4 +1,4 @@
-package mariadbcdc.connector.binlog;
+package mariadbcdc.connector.packet.binlog;
 
 import mariadbcdc.connector.io.ByteWriter;
 import mariadbcdc.connector.packet.WritePacket;

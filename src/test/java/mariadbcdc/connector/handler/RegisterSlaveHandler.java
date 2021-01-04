@@ -1,6 +1,6 @@
 package mariadbcdc.connector.handler;
 
-import mariadbcdc.connector.binlog.ComBinlogDumpPacket;
+import mariadbcdc.connector.packet.binlog.ComBinlogDumpPacket;
 import mariadbcdc.connector.io.Either;
 import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.packet.OkPacket;
@@ -47,12 +47,13 @@ public class RegisterSlaveHandler {
     }
 
     public void startBinlogDump(String binlogFilename, long binlogPosition, long slaveServerId) {
-        packetIO.write(new ComBinlogDumpPacket(
+        ComBinlogDumpPacket dumpPacket = new ComBinlogDumpPacket(
                 binlogPosition,
                 0,
                 slaveServerId,
                 binlogFilename
-        ));
-        logger.info("send");
+        );
+        packetIO.write(dumpPacket);
+        logger.info("sended BinlogDump: {}", dumpPacket);
     }
 }

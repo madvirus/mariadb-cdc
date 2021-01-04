@@ -1,10 +1,12 @@
 package mariadbcdc.connector;
 
+import mariadbcdc.connector.handler.BinLogHandler;
 import mariadbcdc.connector.handler.HandshakeHandler;
 import mariadbcdc.connector.handler.HandshakeSuccessResult;
 import mariadbcdc.connector.handler.RegisterSlaveHandler;
 import mariadbcdc.connector.io.Either;
 import mariadbcdc.connector.io.PacketIO;
+import mariadbcdc.connector.io.ReadPacketData;
 import mariadbcdc.connector.packet.ComQuitPacket;
 import mariadbcdc.connector.packet.OkPacket;
 import mariadbcdc.connector.packet.query.ComQueryPacket;
@@ -35,6 +37,8 @@ class BinLogSession {
     private int connectionId;
     private Long masterServerId;
     private long slaveServerId = 65534;
+
+    private BinLogHandler binLogHandler;
 
     public BinLogSession(String host, int port, String user, String password) {
         this.user = user;
@@ -78,11 +82,14 @@ class BinLogSession {
         logger.info("serverId: {}", masterServerId);
         String checksum = handler.handleChecksum();
         logger.info("checksum: {}", checksum);
+
+        binLogHandler = new BinLogHandler(packetIO, checksum);
+
         handler.startBinlogDump(binlogFile, binlogPosition, slaveServerId);
     }
 
     public void readBinlog() {
-        packetIO.readPacketData();
+        binLogHandler.readBinLog();
     }
 
     public String getBinlogFile() {
@@ -94,6 +101,7 @@ class BinLogSession {
     }
 
     public void close() {
+        logger.info("closing session");
         try {
             packetIO.write(ComQuitPacket.INSTANCE);
         } catch (Exception e) {
@@ -110,5 +118,6 @@ class BinLogSession {
             socket.close();
         } catch (IOException e) {
         }
+        logger.info("closed session");
     }
 }
