@@ -1,6 +1,8 @@
 package mariadbcdc.connector.handler;
 
 import mariadbcdc.connector.binlog.BinLogEvent;
+import mariadbcdc.connector.binlog.BinLogHeader;
+import mariadbcdc.connector.binlog.BinlogEventType;
 import mariadbcdc.connector.io.Either;
 import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.io.ReadPacketData;
@@ -21,16 +23,16 @@ public class BinLogHandler {
         this.checksum = checksum;
     }
 
-    public Either<ErrPacket, BinLogEvent> readBinLog() {
+    public Either<ErrPacket, BinLogEvent> readBinLogEvent() {
         ReadPacketData readPacketData = packetIO.readPacketData();
         int status = readPacketData.readInt(1);
-        CRC32 crc32 = new CRC32();
-        crc32.update(readPacketData.getRawBodyBytes(), 0, readPacketData.getPacketLength() - 4);
-        logger.info("crc32: {}", Long.toHexString(crc32.getValue()));
 
         if (status == 0x00) { // OK
             logger.info("OK");
-            return null;
+            BinLogEvent binLogEvent = toBinLogEvent(readPacketData);
+            return binLogEvent == null ?
+                    Either.right(BinLogEvent.EOF) :
+                    Either.right(binLogEvent);
         } else if (status == 0xFF) { // ERR
             return Either.left(ErrPacket.from(readPacketData));
         } else if (status == 0xFE) { // EOF
@@ -38,5 +40,25 @@ public class BinLogHandler {
         } else {
             return Either.right(BinLogEvent.UNKNOWN);
         }
+    }
+
+    private BinLogEvent toBinLogEvent(ReadPacketData readPacketData) {
+        BinLogHeader header = readBinLogHeader(readPacketData);
+        return null;
+    }
+
+    private BinLogHeader readBinLogHeader(ReadPacketData readPacketData) {
+        return new BinLogHeader(
+                readPacketData.readLong(4) * 1000L,
+                toBinLogEventType(readPacketData.readInt(1)),
+                readPacketData.readLong(4),
+                readPacketData.readLong(4),
+                readPacketData.readLong(4),
+                readPacketData.readInt(2)
+        );
+    }
+
+    private BinlogEventType toBinLogEventType(int code) {
+        return BinlogEventType.byCode(code);
     }
 }

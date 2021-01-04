@@ -6,7 +6,6 @@ import mariadbcdc.connector.handler.HandshakeSuccessResult;
 import mariadbcdc.connector.handler.RegisterSlaveHandler;
 import mariadbcdc.connector.io.Either;
 import mariadbcdc.connector.io.PacketIO;
-import mariadbcdc.connector.io.ReadPacketData;
 import mariadbcdc.connector.packet.ComQuitPacket;
 import mariadbcdc.connector.packet.OkPacket;
 import mariadbcdc.connector.packet.query.ComQueryPacket;
@@ -89,7 +88,7 @@ class BinLogSession {
     }
 
     public void readBinlog() {
-        binLogHandler.readBinLog();
+        binLogHandler.readBinLogEvent();
     }
 
     public String getBinlogFile() {
