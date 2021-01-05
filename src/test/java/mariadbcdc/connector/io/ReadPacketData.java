@@ -11,7 +11,7 @@ public class ReadPacketData {
         try {
             int packetLength = readPacketLength(is);
             int sequenceNumber = readSeqNum(is);
-            readBytes(is, buff, 0, (int)packetLength);
+            readBytes(is, buff, 0, (int) packetLength);
             return new ReadPacketData(packetLength, sequenceNumber, buff);
         } catch (IOException e) {
             throw new BinLogIOException(e);
@@ -88,7 +88,7 @@ public class ReadPacketData {
     public int readInt(int len) {
         if (len > 4) throw new UnsupportedLengthException(len);
         int value = 0;
-        for (int i = 0 ; i < len ; i++) {
+        for (int i = 0; i < len; i++) {
             value += (get() & 0xFF) << (i * 8);
         }
         return value;
@@ -96,8 +96,8 @@ public class ReadPacketData {
 
     public long readLong(int len) {
         long value = 0;
-        for (int i = 0 ; i < len ; i++) {
-            value += ((long)(get() & 0xFF)) << (i * 8);
+        for (int i = 0; i < len; i++) {
+            value += ((long) (get() & 0xFF)) << (i * 8);
         }
         return value;
     }
@@ -113,6 +113,7 @@ public class ReadPacketData {
         idx += len;
         return s;
     }
+
     public String readString(int len) {
         return getString(idx, len);
     }
@@ -120,7 +121,7 @@ public class ReadPacketData {
     public String readStringNul() {
         int start = idx;
         int end = idx;
-        while(true) {
+        while (true) {
             if (end == packetLength) {
                 throw new BinLogEOFException(
                         String.format("readStringNul(): end=%d, packetLength=%d", end, packetLength));
@@ -194,6 +195,7 @@ public class ReadPacketData {
     public byte[] readBytes(int len) {
         return getBytes(idx, len);
     }
+
     private byte[] getBytes(int offset, int len) {
         if (offset + len > packetLength) {
             throw new BinLogEOFException(

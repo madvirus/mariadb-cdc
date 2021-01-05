@@ -1,6 +1,8 @@
 package mariadbcdc.connector.packet;
 
+import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.io.ReadPacketData;
+import mariadbcdc.connector.packet.binlog.BinLogStatus;
 
 public class ErrPacket implements ReadPacket {
     private int sequenceNumber;
@@ -32,6 +34,31 @@ public class ErrPacket implements ReadPacket {
             } else {
                 readPacketData.rewind(1);
                 errPacket.errorMessage = readPacketData.readStringEOF();
+            }
+        }
+        return errPacket;
+    }
+
+    public static ErrPacket from(BinLogStatus binLogStatus, PacketIO packetIO) {
+        ErrPacket errPacket = new ErrPacket();
+        errPacket.sequenceNumber = binLogStatus.getSeq();
+        errPacket.header = binLogStatus.getStatus();
+        packetIO.startBlock(binLogStatus.getLength() - 1); // -1은 header 값
+
+        errPacket.errorCode = packetIO.readInt(2);
+        if (errPacket.errorCode == 0xFFFF) {
+            errPacket.stage = packetIO.readInt(1);
+            errPacket.maxStage = packetIO.readInt(1);
+            errPacket.progress = packetIO.readInt(3);
+            errPacket.progressInfo = packetIO.readLengthEncodedString();
+        } else {
+            int ch = packetIO.readInt(1);
+            if (ch == '#') {
+                errPacket.sqlStateMarker = "#";
+                errPacket.sqlState = packetIO.readString(5);
+                errPacket.errorMessage = packetIO.readStringEOF();
+            } else {
+                errPacket.errorMessage = ((char)ch) + packetIO.readStringEOF();
             }
         }
         return errPacket;

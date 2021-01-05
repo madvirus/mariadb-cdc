@@ -1,8 +1,5 @@
 package mariadbcdc.connector.io;
 
-import java.io.IOException;
-import java.io.OutputStream;
-
 public class WritePacketData {
     private int sequenceNumber;
     private byte[] buff;
@@ -14,23 +11,11 @@ public class WritePacketData {
         this.packetLength = packetLength;
     }
 
-    public void send(OutputStream out) {
-        try {
-            writePacketLength(out);
-            out.write((byte)sequenceNumber);
-            out.write(buff, 0, packetLength);
-            out.flush();
-        } catch (IOException e) {
-            throw new BinLogIOException(e);
-        }
-    }
-
-    private void writePacketLength(OutputStream out) throws IOException {
-        int len = packetLength;
-        for (int i = 0; i < 3; i++) {
-            out.write((byte) (len & 0xFF));
-            len = len >> 8;
-        }
+    public void send(PacketIO packetIO) {
+        packetIO.writeInt(packetLength, 3);
+        packetIO.writeByte((byte)sequenceNumber);
+        packetIO.writeBytes(buff, 0, packetLength);
+        packetIO.flush();
     }
 
     public void dump(StringBuilder sb) {

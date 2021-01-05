@@ -7,7 +7,7 @@ public class BinLogEvent {
     private BinLogHeader header;
     private BinLogData data;
 
-    private BinLogEvent(BinLogHeader header, BinLogData data) {
+    public BinLogEvent(BinLogHeader header, BinLogData data) {
         this.header = header;
         this.data = data;
     }

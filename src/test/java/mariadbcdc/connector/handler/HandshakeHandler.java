@@ -3,9 +3,7 @@ package mariadbcdc.connector.handler;
 import mariadbcdc.connector.*;
 import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.io.ReadPacketData;
-import mariadbcdc.connector.packet.ErrPacket;
-import mariadbcdc.connector.packet.OkPacket;
-import mariadbcdc.connector.packet.ReadPacket;
+import mariadbcdc.connector.packet.*;
 import mariadbcdc.connector.packet.connection.AuthSwitchRequestPacket;
 import mariadbcdc.connector.packet.connection.AuthSwitchResponsePacket;
 import mariadbcdc.connector.packet.connection.HandshakeResponsePacket;
@@ -18,16 +16,22 @@ public class HandshakeHandler {
 
     private final String user;
     private final String password;
-    private PacketIO packetIO;
 
     private InitialHandshakePacket packet;
     private int serverCapabilities;
     private int clientCapabilities;
 
-    public HandshakeHandler(String user, String password, PacketIO packetIO) {
+    private ReadPacketReader reader;
+    private WritePacketWriter writer;
+
+    public HandshakeHandler(String user,
+                            String password,
+                            ReadPacketReader readPacketReader,
+                            WritePacketWriter writer) {
         this.user = user;
         this.password = password;
-        this.packetIO = packetIO;
+        this.reader = readPacketReader;
+        this.writer = writer;
     }
 
     public HandshakeSuccessResult handshake() {
@@ -36,7 +40,7 @@ public class HandshakeHandler {
         serverCapabilities = packet.getServerCapabilities();
 
         HandshakeResponsePacket respPacket = createHandshakeResponsePacket(packet);
-        packetIO.write(respPacket);
+        writer.write(respPacket);
         logger.info("sended handshake response packet: {}", respPacket);
 
         ReadPacket responsePacket = receiveServerResponse();
@@ -71,7 +75,7 @@ public class HandshakeHandler {
             throw new UnsupportedAuthPluginException(authSwitchReq.getAuthPluginName());
         }
         AuthSwitchResponsePacket authRespPacket = createAuthSwitchResponsePacket(authSwitchReq);
-        packetIO.write(authRespPacket);
+        writer.write(authRespPacket);
         logger.info("sended auth switch response packet: {}", authRespPacket);
 
         ReadPacket switchRespPacket = receiveServerResponse();
@@ -86,7 +90,7 @@ public class HandshakeHandler {
     }
 
     private InitialHandshakePacket receiveInitialHandshakePacket() {
-        ReadPacketData readPacketData = packetIO.readPacketData();
+        ReadPacketData readPacketData = reader.readPacketData();
         InitialHandshakePacket packet = InitialHandshakePacket.from(readPacketData);
         return packet;
     }
@@ -112,7 +116,6 @@ public class HandshakeHandler {
             clientCapabilities |= CapabilityFlag.CLIENT_DEPRECATE_EOF.getValue();
         }
 
-        packetIO.setClientCapabilities(clientCapabilities);
         // | CapabilityFlag.CONNECT_WITH_DB.getValue()
         return new HandshakeResponsePacket(
                 clientCapabilities,
@@ -131,8 +134,9 @@ public class HandshakeHandler {
         );
     }
 
+
     private ReadPacket receiveServerResponse() {
-        return packetIO.read();
+        return reader.read(clientCapabilities);
     }
 
 }

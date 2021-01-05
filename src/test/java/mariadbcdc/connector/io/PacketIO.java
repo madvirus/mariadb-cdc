@@ -1,127 +1,185 @@
 package mariadbcdc.connector.io;
 
 import mariadbcdc.connector.BinLogBadPacketException;
-import mariadbcdc.connector.BinLogErrException;
-import mariadbcdc.connector.CapabilityFlag;
-import mariadbcdc.connector.packet.*;
-import mariadbcdc.connector.packet.connection.AuthSwitchRequestPacket;
-import mariadbcdc.connector.packet.result.ColumnCountPacket;
-import mariadbcdc.connector.packet.result.ResultSetPacket;
-import mariadbcdc.connector.packet.result.TextResultSetRowPacket;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.List;
 
 public class PacketIO {
-    private Logger logger = LoggerFactory.getLogger(getClass());
-
     private final InputStream is;
     private final OutputStream os;
 
-    private byte[] writeBody = new byte[16777215];
     private byte[] readBody = new byte[16777215];
-    private int clientCapabilities;
+    private int remainingBlock;
 
     public PacketIO(InputStream is, OutputStream os) {
         this.is = is;
         this.os = os;
     }
 
-    public void setClientCapabilities(int clientCapabilities) {
-        this.clientCapabilities = clientCapabilities;
-    }
-
-    public ReadPacket read() {
-        ReadPacketData readPacketData = readPacketData();
-        int firstBodyByte = readPacketData.getFirstByte();
-        if (firstBodyByte == 0xFE) {
-            return AuthSwitchRequestPacket.from(readPacketData);
-        }
-        if (firstBodyByte == 0x00) {
-            return OkPacket.from(readPacketData, clientCapabilities);
-        }
-        if (firstBodyByte == 0xFF) {
-            return ErrPacket.from(readPacketData);
-        }
-        if (firstBodyByte == 0xFE && readPacketData.getRealPacketLength() <= 9) {
-            return EofPacket.from(readPacketData);
-        }
-        return UnknownReadPcket.INSTANCE;
-    }
-
-    public ReadPacketData readPacketData() {
-        ReadPacketData readPacketData = ReadPacketData.from(is, readBody);
-        if (logger.isDebugEnabled()) {
-            StringBuilder sb = new StringBuilder();
-            readPacketData.dump(sb);
-            logger.debug("read packet data: {}", sb.toString());
-        }
-        return readPacketData;
-    }
-
-    private EofPacket readEofPacket() {
-        ReadPacketData readPacketData = readPacketData();
-        int firstBodyByte = readPacketData.getFirstByte();
-        if (firstBodyByte == 0xFE && readPacketData.getRealPacketLength() <= 9) {
-            return EofPacket.from(readPacketData);
-        } else {
-            throw new BinLogBadPacketException("not EOF packet");
-        }
-    }
-
-    public Either<OkPacket, ResultSetPacket> readResultSetPacket() {
-        ReadPacketData readPacketData = readPacketData();
-        int firstBodyByte = readPacketData.getFirstByte();
-        if (firstBodyByte == 0xFF) {
-            ErrPacket errPacket = ErrPacket.from(readPacketData);
-            throw new BinLogErrException(errPacket.toString());
-        }
-        if (firstBodyByte == 0x00) {
-            return Either.left(OkPacket.from(readPacketData, clientCapabilities));
-        }
-        ColumnCountPacket columnCountPacket = ColumnCountPacket.from(readPacketData);
-        ColumnDefPacket[] columnDefPackets = new ColumnDefPacket[columnCountPacket.getCount()];
-        for (int i = 0; i < columnCountPacket.getCount(); i++) {
-            ReadPacketData colDefReadPacket = readPacketData();
-            columnDefPackets[i] = ColumnDefPacket.from(colDefReadPacket);
-        }
-        if (!CapabilityFlag.CLIENT_DEPRECATE_EOF.support(clientCapabilities)) {
-            readEofPacket();
-        }
-        List<TextResultSetRowPacket> rows = new ArrayList<>();
-        while (true) {
-            ReadPacketData rowPacket = readPacketData();
-            int first = rowPacket.getFirstByte();
-            if (first == 0xFF) {
-                ErrPacket errPacket = ErrPacket.from(readPacketData);
-                throw new BinLogErrException(errPacket.toString());
-            } else if (first == 0xFE) {
-//                return CapabilityFlag.CLIENT_DEPRECATE_EOF.support(clientCapabilities) ?
-//                        OkPacket.from(rowPacket, clientCapabilities) :
-//                        EofPacket.from(rowPacket);
-                break;
+    private int read() {
+        try {
+            int read = is.read();
+            if (read == -1) {
+                throw new BinLogEOFException("EOF");
             }
-            TextResultSetRowPacket row = TextResultSetRowPacket.from(columnDefPackets, rowPacket);
-            rows.add(row);
+            remainingBlock--;
+            return read;
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
         }
-        return Either.right(
-                new ResultSetPacket(columnCountPacket, columnDefPackets, rows)
-        );
     }
 
-    public void write(WritePacket respPacket) {
-        BufferByteWriter writer = new BufferByteWriter(writeBody);
-        respPacket.writeTo(writer);
-        WritePacketData writePacketData1 = new WritePacketData(writer.getSequenceNumber(), writeBody, writer.getPacketLength());
-        writePacketData1.send(os);
-        if (logger.isDebugEnabled()) {
-            StringBuilder sb = new StringBuilder();
-            writePacketData1.dump(sb);
-            logger.debug("write packet data: {}", sb.toString());
+    public int readInt(int len) {
+        try {
+            int value = 0;
+            for (int i = 0; i < len; i++) {
+                value += is.read() << (i * 8);
+            }
+            remainingBlock -= len;
+            return value;
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
+        }
+    }
+
+    public long readLong(int len) {
+        try {
+            long value = 0;
+            for (int i = 0; i < len; i++) {
+                int read = is.read();
+                if (read == -1) {
+                    throw new BinLogEOFException("EOF");
+                }
+                value += ((long) read << (i * 8));
+            }
+            remainingBlock -= len;
+            return value;
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
+        }
+    }
+
+    public String readString(int len) {
+        try {
+            int read = is.read(readBody, 0, len);
+            if (read == -1) {
+                throw new BinLogEOFException("-1");
+            }
+            remainingBlock -= len;
+            return new String(readBody, 0, len);
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
+        }
+    }
+
+    public int readLengthEncodedInt() {
+        int length = readLengthEncoded();
+        if (length < 0xFB) {
+            return length;
+        }
+        return readInt(length);
+    }
+
+    public long readLengthEncodedLong() {
+        int length = readLengthEncoded();
+        if (length < 0xFB) {
+            return length;
+        }
+        return readLong(length);
+    }
+
+    public String readLengthEncodedString() {
+        int length = readLengthEncoded();
+        if (length == -1) return null;
+        return readString(length);
+    }
+
+    private int readLengthEncoded() {
+        int first = read();
+        if (first < 0xFB)
+            return first;
+        if (first == 0xFB) return -1;
+        if (first == 0xFC) {
+            return readInt(2);
+        }
+        if (first == 0xFD) {
+            return readInt(3);
+        }
+        if (first == 0xFE) {
+            // TODO 검토 필요 return readInt(8);
+            throw new UnsupportedLengthException(8);
+        }
+        throw new BinLogBadPacketException("invalid length encoded: " + Integer.toHexString(first));
+    }
+
+    public void skip(int length) {
+        try {
+            is.skip(length);
+            remainingBlock -= length;
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
+        }
+    }
+
+    public void startBlock(int blockLength) {
+        this.remainingBlock = blockLength;
+    }
+
+    public String readStringEOF() {
+        return readString(remainingBlock);
+    }
+
+    public void skipRemaining() {
+        skip(remainingBlock);
+    }
+
+    public void readBytes(byte[] buff, int offset, int len) {
+        try {
+            int read = is.read(buff, offset, len);
+            if (read == -1) {
+                throw new BinLogEOFException("-1");
+            }
+            remainingBlock -= len;
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
+        }
+    }
+
+    public void writeInt(int value, int len) {
+        try {
+            int v = value;
+            for (int i = 0; i < len; i++) {
+                os.write((byte) (v & 0xFF));
+                v = v >> 8;
+            }
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
+        }
+    }
+
+    public void writeBytes(byte[] bytes, int offset, int len) {
+        try {
+            os.write(bytes, offset, len);
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
+        }
+    }
+
+    public void writeByte(byte b) {
+        try {
+            os.write(b);
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
+        }
+    }
+
+    public void flush() {
+        try {
+            os.flush();
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
         }
     }
 }

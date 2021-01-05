@@ -8,6 +8,8 @@ import mariadbcdc.connector.io.Either;
 import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.packet.ComQuitPacket;
 import mariadbcdc.connector.packet.OkPacket;
+import mariadbcdc.connector.packet.ReadPacketReader;
+import mariadbcdc.connector.packet.WritePacketWriter;
 import mariadbcdc.connector.packet.query.ComQueryPacket;
 import mariadbcdc.connector.packet.result.ResultSetPacket;
 import mariadbcdc.connector.packet.result.ResultSetRow;
@@ -37,7 +39,12 @@ class BinLogSession {
     private Long masterServerId;
     private long slaveServerId = 65534;
 
+    private String checksum;
+
     private BinLogHandler binLogHandler;
+
+    private final ReadPacketReader readPacketReader;
+    private final WritePacketWriter writePacketWriter;
 
     public BinLogSession(String host, int port, String user, String password) {
         this.user = user;
@@ -47,21 +54,23 @@ class BinLogSession {
             is = new BufferedInputStream(socket.getInputStream());
             out = new BufferedOutputStream(socket.getOutputStream());
             packetIO = new PacketIO(is, out);
+            readPacketReader = new ReadPacketReader(packetIO);
+            writePacketWriter = new WritePacketWriter(packetIO);
         } catch (IOException e) {
             throw new BinLogException(e);
         }
     }
 
     public void handshake() {
-        HandshakeSuccessResult handshake = new HandshakeHandler(user, password, packetIO).handshake();
+        HandshakeSuccessResult handshake = new HandshakeHandler(user, password, readPacketReader, writePacketWriter).handshake();
         connectionId = handshake.getConnectionId();
         this.clientCapabilities = handshake.getClientCapabilities();
         this.serverCapabilities = handshake.getServerCapabilities();
     }
 
     public void fetchBinlogFilenameAndPosition() {
-        packetIO.write(new ComQueryPacket("show master status"));
-        Either<OkPacket,ResultSetPacket> readPacket = packetIO.readResultSetPacket();
+        writePacketWriter.write(new ComQueryPacket("show master status"));
+        Either<OkPacket, ResultSetPacket> readPacket = new ReadPacketReader(packetIO).readResultSetPacket(clientCapabilities);
         ResultSetPacket rsp = readPacket.getRight();
         if (rsp.getRows().isEmpty()) {
             throw new BinLogException("Failed to read binlog filename/position");
@@ -76,18 +85,18 @@ class BinLogSession {
     }
 
     public void registerSlave() {
-        RegisterSlaveHandler handler = new RegisterSlaveHandler(packetIO);
+        RegisterSlaveHandler handler = new RegisterSlaveHandler(clientCapabilities, readPacketReader, writePacketWriter);
         this.masterServerId = handler.getServerId();
         logger.info("serverId: {}", masterServerId);
-        String checksum = handler.handleChecksum();
+        checksum = handler.handleChecksum();
         logger.info("checksum: {}", checksum);
-
-        binLogHandler = new BinLogHandler(packetIO, checksum);
-
         handler.startBinlogDump(binlogFile, binlogPosition, slaveServerId);
     }
 
     public void readBinlog() {
+        if (binLogHandler == null) {
+            binLogHandler = new BinLogHandler(packetIO, checksum);
+        }
         binLogHandler.readBinLogEvent();
     }
 
@@ -102,7 +111,7 @@ class BinLogSession {
     public void close() {
         logger.info("closing session");
         try {
-            packetIO.write(ComQuitPacket.INSTANCE);
+            writePacketWriter.write(ComQuitPacket.INSTANCE);
         } catch (Exception e) {
         }
         try {

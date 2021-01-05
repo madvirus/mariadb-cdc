@@ -34,8 +34,12 @@ public class BinLogHeader {
         return serverId;
     }
 
-    public long getEventLength() {
-        return eventLength;
+    public long getEventDataLength() {
+        return eventLength - headerSize();
+    }
+
+    private long headerSize() {
+        return 19;
     }
 
     public long getNextPosition() {

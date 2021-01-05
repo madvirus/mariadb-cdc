@@ -84,7 +84,7 @@ public class HandshakeResponsePacket implements WritePacket {
                 ", maxPacketSize=" + maxPacketSize +
                 ", clientCharacterCollation=" + clientCharacterCollation +
                 ", username='" + username + '\'' +
-                ", authdata='" + new BigInteger(1, authdata).toString(16) +
+                ", authdata='" + new BigInteger(1, authdata).toString(16) + "\'" +
                 ", authenticationPluginName='" + authenticationPluginName + '\'' +
                 ", authLenencClientData=" + authLenencClientData +
                 ", secureConnection=" + secureConnection +

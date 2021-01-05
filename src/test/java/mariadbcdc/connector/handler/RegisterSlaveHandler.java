@@ -1,9 +1,11 @@
 package mariadbcdc.connector.handler;
 
-import mariadbcdc.connector.packet.binlog.ComBinlogDumpPacket;
 import mariadbcdc.connector.io.Either;
 import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.packet.OkPacket;
+import mariadbcdc.connector.packet.ReadPacketReader;
+import mariadbcdc.connector.packet.WritePacketWriter;
+import mariadbcdc.connector.packet.binlog.ComBinlogDumpPacket;
 import mariadbcdc.connector.packet.query.ComQueryPacket;
 import mariadbcdc.connector.packet.result.ResultSetPacket;
 import mariadbcdc.connector.packet.result.ResultSetRow;
@@ -15,15 +17,21 @@ import java.util.List;
 public class RegisterSlaveHandler {
     private Logger logger = LoggerFactory.getLogger(getClass());
 
-    private PacketIO packetIO;
+    private int clientCapacilities;
+    private ReadPacketReader reader;
+    private WritePacketWriter writer;
 
-    public RegisterSlaveHandler(PacketIO packetIO) {
-        this.packetIO = packetIO;
+    public RegisterSlaveHandler(int clientCapacilities,
+                                ReadPacketReader reader,
+                                WritePacketWriter writer) {
+        this.clientCapacilities = clientCapacilities;
+        this.reader = reader;
+        this.writer = writer;
     }
 
     public Long getServerId() {
-        packetIO.write(new ComQueryPacket("SHOW VARIABLES LIKE 'SERVER_ID'"));
-        Either<OkPacket, ResultSetPacket> rs = packetIO.readResultSetPacket();
+        writer.write(new ComQueryPacket("SHOW VARIABLES LIKE 'SERVER_ID'"));
+        Either<OkPacket, ResultSetPacket> rs = reader.readResultSetPacket(clientCapacilities);
         if (rs.isLeft()) {
             // OK
             return null;
@@ -36,10 +44,10 @@ public class RegisterSlaveHandler {
     }
 
     public String handleChecksum() {
-        packetIO.write(new ComQueryPacket("SET @master_binlog_checksum= @@global.binlog_checksum"));
-        Either<OkPacket, ResultSetPacket> rs = packetIO.readResultSetPacket();
-        packetIO.write(new ComQueryPacket("SELECT @master_binlog_checksum"));
-        Either<OkPacket, ResultSetPacket> rs2 = packetIO.readResultSetPacket();
+        writer.write(new ComQueryPacket("SET @master_binlog_checksum= @@global.binlog_checksum"));
+        Either<OkPacket, ResultSetPacket> rs = reader.readResultSetPacket(clientCapacilities);
+        writer.write(new ComQueryPacket("SELECT @master_binlog_checksum"));
+        Either<OkPacket, ResultSetPacket> rs2 = reader.readResultSetPacket(clientCapacilities);
         if (rs2.isLeft()) {
             return null;
         }
@@ -53,7 +61,7 @@ public class RegisterSlaveHandler {
                 slaveServerId,
                 binlogFilename
         );
-        packetIO.write(dumpPacket);
+        writer.write(dumpPacket);
         logger.info("sended BinlogDump: {}", dumpPacket);
     }
 }
