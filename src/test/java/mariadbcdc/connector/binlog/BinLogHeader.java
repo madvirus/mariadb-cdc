@@ -2,6 +2,7 @@ package mariadbcdc.connector.binlog;
 
 public class BinLogHeader {
     private long timestamp;
+    private int eventCode;
     private BinlogEventType eventType;
     private long serverId;
     private long eventLength;
@@ -9,13 +10,14 @@ public class BinLogHeader {
     private int flags;
 
     public BinLogHeader(long timestamp,
-                        BinlogEventType eventType,
+                        int eventCode,
                         long serverId,
                         long eventLength,
                         long nextPosition,
                         int flags) {
         this.timestamp = timestamp;
-        this.eventType = eventType;
+        this.eventCode = eventCode;
+        this.eventType = BinlogEventType.byCode(eventCode);
         this.serverId = serverId;
         this.eventLength = eventLength;
         this.nextPosition = nextPosition;
@@ -26,12 +28,20 @@ public class BinLogHeader {
         return timestamp;
     }
 
+    public int getEventCode() {
+        return eventCode;
+    }
+
     public BinlogEventType getEventType() {
         return eventType;
     }
 
     public long getServerId() {
         return serverId;
+    }
+
+    public long getEventLength() {
+        return eventLength;
     }
 
     public long getEventDataLength() {
@@ -54,6 +64,7 @@ public class BinLogHeader {
     public String toString() {
         return "BinLogHeader{" +
                 "timestamp=" + timestamp +
+                ", eventCode=" + eventCode +
                 ", eventType=" + eventType +
                 ", serverId=" + serverId +
                 ", eventLength=" + eventLength +

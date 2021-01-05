@@ -147,6 +147,10 @@ public class PacketIO {
         }
     }
 
+    public int remainingBlock() {
+        return remainingBlock;
+    }
+
     public void writeInt(int value, int len) {
         try {
             int v = value;

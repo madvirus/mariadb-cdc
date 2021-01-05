@@ -16,13 +16,47 @@ public class FormatDescriptionEvent implements BinLogData {
     private long timestamp;
     private int headerLength; // uint<1> The header length. This length - 19 gives the size of the extra headers field at the end of the header for other events.
 
-//    byte<n> Variable-sized. An array that indicates the post-header lengths for all event types.
-//    There is one byte per event type that the server knows about.
-//    The value 'n' comes from the following formula:
-//    n = event_size - header length - offset (2 + 50 + 4 + 1) - checksum_algo - checksum
     /** uint<1> Checksum Algorithm Type */
-    private int checksumAlgoType;
+    private int checksumType;
 
     // uint<4> CRC32 4 bytes (value matters only if checksum algo is CRC32)
 
+    public FormatDescriptionEvent(int logFormatVersion, String serverVersion, long timestamp, int headerLength, int checksumType) {
+        this.logFormatVersion = logFormatVersion;
+        this.serverVersion = serverVersion;
+        this.timestamp = timestamp;
+        this.headerLength = headerLength;
+        this.checksumType = checksumType;
+    }
+
+    public int getLogFormatVersion() {
+        return logFormatVersion;
+    }
+
+    public String getServerVersion() {
+        return serverVersion;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public int getHeaderLength() {
+        return headerLength;
+    }
+
+    public int getChecksumType() {
+        return checksumType;
+    }
+
+    @Override
+    public String toString() {
+        return "FormatDescriptionEvent{" +
+                "logFormatVersion=" + logFormatVersion +
+                ", serverVersion='" + serverVersion + '\'' +
+                ", timestamp=" + timestamp +
+                ", headerLength=" + headerLength +
+                ", checksumType=" + checksumType +
+                '}';
+    }
 }

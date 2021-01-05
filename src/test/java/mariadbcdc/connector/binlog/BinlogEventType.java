@@ -19,6 +19,10 @@ public enum BinlogEventType {
     GTID_EVENT(0xa2),
     GTID_LIST_EVENT(0xa3),
     START_ENCRYPTION_EVENT(0xa4),
+
+    WRITE_ROWS_EVENT_V1(0x17), // 23
+    UPDATE_ROWS_EVENT_V1(0x18), // 24
+    DELETE_ROWS_EVENT_V1(0x19), // 25
     ;
 
 

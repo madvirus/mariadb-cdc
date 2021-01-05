@@ -57,6 +57,7 @@ public class BinLogHandler {
                 break;
             case FORMAT_DESCRIPTION_EVENT:
                 data = readFormationDescriptionEvent(binLogStatus, header);
+                break;
             case TABLE_MAP_EVENT:
 
             default:
@@ -67,17 +68,23 @@ public class BinLogHandler {
     }
 
     private int checksumSize() {
-        return "CRC32".equalsIgnoreCase(checksum) ? 4 : 0;
+        return 4; // "CRC32".equalsIgnoreCase(checksum) ? 4 : 0;
     }
 
     private BinLogHeader readBinLogHeader() {
+        long timestamp = packetIO.readLong(4) * 1000L;
+        int code = packetIO.readInt(1);
+        long serverId = packetIO.readLong(4);
+        long eventLength = packetIO.readLong(4);
+        long nextPosition = packetIO.readLong(4);
+        int flags = packetIO.readInt(2);
         return new BinLogHeader(
-                packetIO.readLong(4) * 1000L,
-                toBinLogEventType(packetIO.readInt(1)),
-                packetIO.readLong(4),
-                packetIO.readLong(4),
-                packetIO.readLong(4),
-                packetIO.readInt(2)
+                timestamp,
+                code,
+                serverId,
+                eventLength,
+                nextPosition,
+                flags
         );
     }
 
@@ -88,11 +95,25 @@ public class BinLogHandler {
     }
 
     private BinLogData readFormationDescriptionEvent(BinLogStatus binLogStatus, BinLogHeader header) {
-        FormatDescriptionEvent event = new FormatDescriptionEvent();
+        int logFormatVersion = packetIO.readInt(2);
+        String serverVersion = packetIO.readString(50).trim();
+        long timestamp = packetIO.readLong(4) * 1000;
+        int headerLength = packetIO.readInt(1);
+        // n = event_size - header length(19) - offset (2 + 50 + 4 + 1) - checksum_algo - checksum
+        int n = (int)header.getEventLength() - headerLength - (2 + 50 + 4 + 1) - 5;
+        if (n > 0) {
+            packetIO.skip(n);
+        }
+        int checksumType = packetIO.readInt(1);
+        FormatDescriptionEvent event = new FormatDescriptionEvent(
+                logFormatVersion,
+                serverVersion,
+                timestamp,
+                headerLength,
+                checksumType
+        );
+        logger.info("read FormatDescriptionEvent: {}", event);
         return event;
     }
 
-    private BinlogEventType toBinLogEventType(int code) {
-        return BinlogEventType.byCode(code);
-    }
 }
