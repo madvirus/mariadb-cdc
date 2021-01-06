@@ -1,4 +1,4 @@
-package mariadbcdc.connector.binlog;
+package mariadbcdc.connector.packet.binlog;
 
 public class BinLogHeader {
     private long timestamp;

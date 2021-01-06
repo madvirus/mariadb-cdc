@@ -127,6 +127,28 @@ public class PacketIO {
         this.remainingBlock = blockLength;
     }
 
+    public String readStringNul() {
+        try {
+            int end = 0;
+            while (true) {
+                int b = is.read();
+                if (b == -1) {
+                    throw new BinLogEOFException("EOF");
+                }
+                remainingBlock--;
+                if (b == 0) {
+                    break;
+                }
+                readBody[end] = (byte)b;
+                end++;
+            }
+            String s = new String(readBody, 0, end);
+            return s;
+        } catch (IOException e) {
+            throw new BinLogIOException(e);
+        }
+    }
+
     public String readStringEOF() {
         return readString(remainingBlock);
     }
@@ -135,13 +157,14 @@ public class PacketIO {
         skip(remainingBlock);
     }
 
-    public void readBytes(byte[] buff, int offset, int len) {
+    public byte[] readBytes(byte[] buff, int offset, int len) {
         try {
             int read = is.read(buff, offset, len);
             if (read == -1) {
                 throw new BinLogEOFException("-1");
             }
             remainingBlock -= len;
+            return buff;
         } catch (IOException e) {
             throw new BinLogIOException(e);
         }

@@ -1,5 +1,8 @@
 package mariadbcdc.connector;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public enum FieldType {
     DECIMAL(0),
     TINY(1),
@@ -34,6 +37,17 @@ public enum FieldType {
     GEOMETRY(255),
     ;
 
+    private static Map<Integer, FieldType> map = new HashMap<>();
+    static {
+        for (FieldType type : values()) {
+            map.put(type.getValue(), type);
+        }
+    }
+
+    public static FieldType byValue(int value) {
+        return map.get(value);
+    }
+
     private int value;
 
     FieldType(int value) {
@@ -43,4 +57,5 @@ public enum FieldType {
     public int getValue() {
         return value;
     }
+
 }

@@ -1,6 +1,6 @@
-package mariadbcdc.connector.binlog;
+package mariadbcdc.connector.packet.binlog.data;
 
-import mariadbcdc.connector.binlog.BinLogData;
+import mariadbcdc.connector.packet.binlog.BinLogData;
 
 public class RotateEvent implements BinLogData {
     private final long position;

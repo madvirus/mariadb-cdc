@@ -1,5 +1,7 @@
 package mariadbcdc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.MariaDBContainer;
 
 import java.io.IOException;

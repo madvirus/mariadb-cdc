@@ -1,4 +1,4 @@
-package mariadbcdc.connector.binlog;
+package mariadbcdc.connector.packet.binlog;
 
 public class BinLogEvent {
     public static final BinLogEvent EOF = new EOF();

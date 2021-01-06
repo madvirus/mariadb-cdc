@@ -1,4 +1,6 @@
-package mariadbcdc.connector.binlog;
+package mariadbcdc.connector.packet.binlog.data;
+
+import mariadbcdc.connector.packet.binlog.BinLogData;
 
 public class FormatDescriptionEvent implements BinLogData {
     /**

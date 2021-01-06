@@ -10,4 +10,5 @@
         <appender-ref ref="CONSOLE" />
     </root>
     <logger name="mariadbcdc" level="DEBUG"/>
+    <logger name="mariadbcdc.connector.handler" level="TRACE"/>
 </configuration>

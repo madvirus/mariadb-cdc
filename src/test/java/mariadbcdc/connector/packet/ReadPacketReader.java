@@ -34,10 +34,10 @@ public class ReadPacketReader {
 
         ReadPacketData readPacketData = new ReadPacketData(packetLength, sequenceNumber, buff);
 
-        if (logger.isDebugEnabled()) {
+        if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder();
             readPacketData.dump(sb);
-            logger.debug("read packet data: {}", sb.toString());
+            logger.trace("read packet data: {}", sb.toString());
         }
         return readPacketData;
     }

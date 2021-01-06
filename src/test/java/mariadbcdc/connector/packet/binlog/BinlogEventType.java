@@ -1,4 +1,4 @@
-package mariadbcdc.connector.binlog;
+package mariadbcdc.connector.packet.binlog;
 
 import java.util.HashMap;
 import java.util.Map;

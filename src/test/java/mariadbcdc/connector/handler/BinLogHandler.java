@@ -1,10 +1,13 @@
 package mariadbcdc.connector.handler;
 
-import mariadbcdc.connector.binlog.*;
 import mariadbcdc.connector.io.Either;
 import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.packet.ErrPacket;
+import mariadbcdc.connector.packet.binlog.BinLogData;
+import mariadbcdc.connector.packet.binlog.BinLogEvent;
+import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.BinLogStatus;
+import mariadbcdc.connector.packet.binlog.des.BinLogDataDeserializers;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +25,7 @@ public class BinLogHandler {
 
     public Either<ErrPacket, BinLogEvent> readBinLogEvent() {
         BinLogStatus binLogStatus = readBinLogStatus();
-        logger.info("binLogStatus: {}", binLogStatus);
+        logger.trace("binLogStatus: {}", binLogStatus);
         int status = binLogStatus.getStatus();
         if (status == 0x00) { // OK
             BinLogEvent binLogEvent = readBinLogEvent(binLogStatus);
@@ -48,22 +51,13 @@ public class BinLogHandler {
 
     private BinLogEvent readBinLogEvent(BinLogStatus binLogStatus) {
         BinLogHeader header = readBinLogHeader();
-        logger.info("binlog header: {}", header);
-        BinLogData data = null;
+        logger.trace("binlog header: {}", header);
         packetIO.startBlock((int) header.getEventDataLength() - checksumSize());
-        switch (header.getEventType()) {
-            case ROTATE_EVENT:
-                data = readRotateEvent(binLogStatus, header);
-                break;
-            case FORMAT_DESCRIPTION_EVENT:
-                data = readFormationDescriptionEvent(binLogStatus, header);
-                break;
-            case TABLE_MAP_EVENT:
-
-            default:
-                packetIO.skipRemaining();
-        }
+        BinLogData data = BinLogDataDeserializers.getDeserializer(header.getEventType()).deserialize(packetIO, binLogStatus, header);
         packetIO.skip(checksumSize());
+        if (data != null) {
+            logger.trace("binlog data: {}", data);
+        }
         return new BinLogEvent(header, data);
     }
 
@@ -86,34 +80,6 @@ public class BinLogHandler {
                 nextPosition,
                 flags
         );
-    }
-
-    private BinLogData readRotateEvent(BinLogStatus binLogStatus, BinLogHeader header) {
-        RotateEvent rotateEvent = new RotateEvent(packetIO.readLong(8), packetIO.readStringEOF());
-        logger.info("read RotateEvent: {}", rotateEvent);
-        return rotateEvent;
-    }
-
-    private BinLogData readFormationDescriptionEvent(BinLogStatus binLogStatus, BinLogHeader header) {
-        int logFormatVersion = packetIO.readInt(2);
-        String serverVersion = packetIO.readString(50).trim();
-        long timestamp = packetIO.readLong(4) * 1000;
-        int headerLength = packetIO.readInt(1);
-        // n = event_size - header length(19) - offset (2 + 50 + 4 + 1) - checksum_algo - checksum
-        int n = (int)header.getEventLength() - headerLength - (2 + 50 + 4 + 1) - 5;
-        if (n > 0) {
-            packetIO.skip(n);
-        }
-        int checksumType = packetIO.readInt(1);
-        FormatDescriptionEvent event = new FormatDescriptionEvent(
-                logFormatVersion,
-                serverVersion,
-                timestamp,
-                headerLength,
-                checksumType
-        );
-        logger.info("read FormatDescriptionEvent: {}", event);
-        return event;
     }
 
 }
