@@ -2,20 +2,83 @@ package mariadbcdc.connector.io;
 
 import mariadbcdc.connector.BinLogBadPacketException;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 public class PacketIO {
-    private final InputStream is;
+    private final DumpableInputStream is;
+    // private final InputStream is;
     private final OutputStream os;
 
     private byte[] readBody = new byte[16777215];
     private int remainingBlock;
 
     public PacketIO(InputStream is, OutputStream os) {
-        this.is = is;
+        this.is = new DumpableInputStream(is);
         this.os = os;
+    }
+
+    private class DumpableInputStream {
+        private boolean dumping;
+        private ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        private InputStream is;
+
+        public DumpableInputStream(InputStream is) {
+            this.is = is;
+        }
+
+        public int read() throws IOException {
+            int b = is.read();
+            if (dumping && b != -1) {
+                bos.write(b);
+            }
+            return b;
+        }
+
+        public int read(byte[] b, int off, int len) throws IOException {
+            int readCnt = is.read(b, off, len);
+            if (dumping && readCnt > 0) {
+                bos.write(b, off, readCnt);
+            }
+            return readCnt;
+        }
+
+        private byte[] temp = new byte[16777215];
+        public long skip(long n) throws IOException {
+            if (dumping) {
+                return this.read(temp, 0, (int) n);
+            } else {
+                return is.skip(n);
+            }
+        }
+
+        public void startDump() {
+            bos.reset();
+            dumping = true;
+        }
+
+        public void finishDump() {
+            dumping = false;
+        }
+
+        public byte[] getDumpedBytes() {
+            return bos.toByteArray();
+        }
+    }
+
+    public void startBlock(int blockLength) {
+        this.remainingBlock = blockLength;
+    }
+
+    public void startDump() {
+        is.startDump();
+    }
+
+    public byte[] finishDump() {
+        is.finishDump();
+        return is.getDumpedBytes();
     }
 
     private int read() {
@@ -123,10 +186,6 @@ public class PacketIO {
         }
     }
 
-    public void startBlock(int blockLength) {
-        this.remainingBlock = blockLength;
-    }
-
     public String readStringNul() {
         try {
             int end = 0;
@@ -142,8 +201,7 @@ public class PacketIO {
                 readBody[end] = (byte)b;
                 end++;
             }
-            String s = new String(readBody, 0, end);
-            return s;
+            return new String(readBody, 0, end);
         } catch (IOException e) {
             throw new BinLogIOException(e);
         }
@@ -209,4 +267,5 @@ public class PacketIO {
             throw new BinLogIOException(e);
         }
     }
+
 }

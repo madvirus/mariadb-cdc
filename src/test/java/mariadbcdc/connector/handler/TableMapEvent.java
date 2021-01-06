@@ -1,20 +1,32 @@
 package mariadbcdc.connector.handler;
 
+import mariadbcdc.connector.FieldType;
 import mariadbcdc.connector.packet.binlog.BinLogData;
 
 import java.util.Arrays;
+import java.util.BitSet;
 
 public class TableMapEvent implements BinLogData {
+    /** The table ID. */
     private final long tableId;
+    /**  Database name length. */
     private final int lengthOfDatabaseName;
+    /** The database name (null-terminated). */
     private final String databaseName;
+    /** Table name length. */
     private final int lengthOfTableName;
+    /** The table name (null-terminated). */
     private final String tableName;
+    /** The number of columns in the table. */
     private final int numberOfColumns;
-    private final byte[] columnTypes;
+    /** An array of 'n' column types, one byte per column. */
+    private final FieldType[] fieldTypes;
+    /** The length of the metadata block. */
     private final int lengthOfMetadata;
-    private final byte[] metadata;
-    private final byte[] bitField;
+    /** The metadata block */
+    private final int[] metadata;
+    /** Bit-field indicating whether each column can be NULL, one bit per column. */
+    private final BitSet nullability;
 
     public TableMapEvent(long tableId,
                          int lengthOfDatabaseName,
@@ -22,20 +34,20 @@ public class TableMapEvent implements BinLogData {
                          int lengthOfTableName,
                          String tableName,
                          int numberOfColumns,
-                         byte[] columnTypes,
+                         FieldType[] fieldTypes,
                          int lengthOfMetadata,
-                         byte[] metadata,
-                         byte[] bitField) {
+                         int[] metadata,
+                         BitSet nullability) {
         this.tableId = tableId;
         this.lengthOfDatabaseName = lengthOfDatabaseName;
         this.databaseName = databaseName;
         this.lengthOfTableName = lengthOfTableName;
         this.tableName = tableName;
         this.numberOfColumns = numberOfColumns;
-        this.columnTypes = columnTypes;
+        this.fieldTypes = fieldTypes;
         this.lengthOfMetadata = lengthOfMetadata;
         this.metadata = metadata;
-        this.bitField = bitField;
+        this.nullability = nullability;
     }
 
     public long getTableId() {
@@ -62,20 +74,20 @@ public class TableMapEvent implements BinLogData {
         return numberOfColumns;
     }
 
-    public byte[] getColumnTypes() {
-        return columnTypes;
+    public FieldType[] getFieldTypes() {
+        return fieldTypes;
     }
 
     public int getLengthOfMetadata() {
         return lengthOfMetadata;
     }
 
-    public byte[] getMetadata() {
+    public int[] getMetadata() {
         return metadata;
     }
 
-    public byte[] getBitField() {
-        return bitField;
+    public BitSet getNullability() {
+        return nullability;
     }
 
     @Override
@@ -87,10 +99,10 @@ public class TableMapEvent implements BinLogData {
                 ", lengthOfTableName=" + lengthOfTableName +
                 ", tableName='" + tableName + '\'' +
                 ", numberOfColumns=" + numberOfColumns +
-                ", columnTypes=" + Arrays.toString(columnTypes) +
+                ", fieldTypes=" + Arrays.toString(fieldTypes) +
                 ", lengthOfMetadata=" + lengthOfMetadata +
                 ", metadata=" + Arrays.toString(metadata) +
-                ", bitField=" + Arrays.toString(bitField) +
+                ", nullability=" + nullability.toString() +
                 '}';
     }
 }

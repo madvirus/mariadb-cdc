@@ -1,59 +1,8 @@
 package mariadbcdc.connector.io;
 
-import mariadbcdc.connector.*;
-
-import java.io.IOException;
-import java.io.InputStream;
+import mariadbcdc.connector.BinLogBadPacketException;
 
 public class ReadPacketData {
-
-    public static ReadPacketData from(InputStream is, byte[] buff) {
-        try {
-            int packetLength = readPacketLength(is);
-            int sequenceNumber = readSeqNum(is);
-            readBytes(is, buff, 0, (int) packetLength);
-            return new ReadPacketData(packetLength, sequenceNumber, buff);
-        } catch (IOException e) {
-            throw new BinLogIOException(e);
-        }
-    }
-
-    private static int readSeqNum(InputStream is) throws IOException {
-        return is.read();
-    }
-
-    private static int readPacketLength(InputStream is) throws IOException {
-        int value = 0;
-        for (int i = 0; i < 3; i++) {
-            int read = 0;
-            try {
-                read = is.read();
-            } catch (IOException e) {
-                throw new BinLogException(e);
-            }
-            if (read == -1) {
-                throw new BinLogEOFException("EOF");
-            }
-            value += read << (i * 8);
-        }
-        return value;
-    }
-
-    private static void readBytes(InputStream is, byte[] bytes, int offset, int len) {
-        int readBytes = 0;
-        while (readBytes < len) {
-            int r = 0;
-            try {
-                r = is.read(bytes, offset + readBytes, len - readBytes);
-            } catch (IOException e) {
-                throw new BinLogIOException(e);
-            }
-            if (r == -1) {
-                throw new BinLogEOFException("EOF");
-            }
-            readBytes += r;
-        }
-    }
 
     private int packetLength;
     private int sequenceNumber;

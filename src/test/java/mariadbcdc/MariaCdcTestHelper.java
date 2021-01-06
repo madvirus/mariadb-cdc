@@ -157,6 +157,18 @@ public class MariaCdcTestHelper {
         }
     }
 
+    public void insertMember(long id, String name) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement("insert into test.member (id, name) values (?, ?)")
+        ) {
+            pstmt.setLong(1, id);
+            pstmt.setString(2, name);
+            pstmt.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     public void insertMemberWithBirth(String name, String email, LocalDate birth) {
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement("insert into test.member (name, email, birthday) values (?, ?, ?)")
@@ -242,6 +254,16 @@ public class MariaCdcTestHelper {
              Statement stmt1 = conn.createStatement()
         ) {
             stmt1.executeUpdate(query);
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void truncateMember() {
+        try (Connection conn = getConnection();
+             Statement stmt1 = conn.createStatement()
+        ) {
+            stmt1.executeUpdate("truncate table test.member");
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
         }
