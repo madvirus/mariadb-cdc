@@ -5,10 +5,13 @@ import mariadbcdc.connector.packet.binlog.BinLogData;
 import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.BinLogStatus;
 import mariadbcdc.connector.packet.binlog.data.FormatDescriptionEvent;
+import mariadbcdc.connector.packet.binlog.data.TableMapEvent;
+
+import java.util.Map;
 
 public class FormatDescriptionEventBinLogDataDeserializer implements BinLogDataDeserializer {
     @Override
-    public BinLogData deserialize(PacketIO packetIO, BinLogStatus binLogStatus, BinLogHeader header) {
+    public BinLogData deserialize(PacketIO packetIO, BinLogStatus binLogStatus, BinLogHeader header, Map<Long, TableMapEvent> tableMap) {
         int logFormatVersion = packetIO.readInt(2);
         String serverVersion = packetIO.readString(50).trim();
         long timestamp = packetIO.readLong(4) * 1000;

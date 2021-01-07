@@ -4,10 +4,8 @@ import mariadbcdc.connector.io.DumpUtil;
 import mariadbcdc.connector.io.Either;
 import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.packet.ErrPacket;
-import mariadbcdc.connector.packet.binlog.BinLogData;
-import mariadbcdc.connector.packet.binlog.BinLogEvent;
-import mariadbcdc.connector.packet.binlog.BinLogHeader;
-import mariadbcdc.connector.packet.binlog.BinLogStatus;
+import mariadbcdc.connector.packet.binlog.*;
+import mariadbcdc.connector.packet.binlog.data.TableMapEvent;
 import mariadbcdc.connector.packet.binlog.des.BinLogDataDeserializer;
 import mariadbcdc.connector.packet.binlog.des.BinLogDataDeserializers;
 import org.jetbrains.annotations.NotNull;
@@ -15,11 +13,16 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class BinLogHandler {
     private Logger logger = LoggerFactory.getLogger(getClass());
 
     private final PacketIO packetIO;
     private final String checksum;
+
+    private Map<Long, TableMapEvent> tableMap = new HashMap<>();
 
     public BinLogHandler(PacketIO packetIO, String checksum) {
         this.packetIO = packetIO;
@@ -31,6 +34,10 @@ public class BinLogHandler {
         int status = binLogStatus.getStatus();
         if (status == 0x00) { // OK
             BinLogEvent binLogEvent = readBinLogEvent(binLogStatus);
+            if (binLogEvent != null && binLogEvent.getHeader() != null && binLogEvent.getHeader().getEventType() == BinlogEventType.TABLE_MAP_EVENT) {
+                TableMapEvent tableMapEvent = (TableMapEvent) binLogEvent.getData();
+                tableMap.put(tableMapEvent.getTableId(), tableMapEvent);
+            }
             return binLogEvent == null ?
                     Either.right(BinLogEvent.EOF) :
                     Either.right(binLogEvent);
@@ -90,7 +97,7 @@ public class BinLogHandler {
         BinLogDataDeserializer deserializer = BinLogDataDeserializers.getDeserializer(header.getEventType());
         BinLogData data = null;
         if (deserializer != null) {
-            data = deserializer.deserialize(packetIO, binLogStatus, header);
+            data = deserializer.deserialize(packetIO, binLogStatus, header, tableMap);
         } else {
             packetIO.skipRemaining();
         }

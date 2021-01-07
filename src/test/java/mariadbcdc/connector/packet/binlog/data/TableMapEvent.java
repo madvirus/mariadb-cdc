@@ -1,4 +1,4 @@
-package mariadbcdc.connector.handler;
+package mariadbcdc.connector.packet.binlog.data;
 
 import mariadbcdc.connector.FieldType;
 import mariadbcdc.connector.packet.binlog.BinLogData;

@@ -5,6 +5,7 @@ import mariadbcdc.connector.packet.binlog.BinLogData;
 import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.BinLogStatus;
 import mariadbcdc.connector.packet.binlog.BinlogEventType;
+import mariadbcdc.connector.packet.binlog.data.TableMapEvent;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +27,7 @@ public class BinLogDataDeserializers {
 
     private static class NullBinLogDataDeserializer implements BinLogDataDeserializer {
         @Override
-        public BinLogData deserialize(PacketIO packetIO, BinLogStatus binLogStatus, BinLogHeader header) {
+        public BinLogData deserialize(PacketIO packetIO, BinLogStatus binLogStatus, BinLogHeader header, Map<Long, TableMapEvent> tableMap) {
             packetIO.skipRemaining();
             return null;
         }

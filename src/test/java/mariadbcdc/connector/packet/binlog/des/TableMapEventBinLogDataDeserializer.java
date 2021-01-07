@@ -1,17 +1,18 @@
 package mariadbcdc.connector.packet.binlog.des;
 
 import mariadbcdc.connector.FieldType;
-import mariadbcdc.connector.handler.TableMapEvent;
 import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.packet.binlog.BinLogData;
 import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.BinLogStatus;
+import mariadbcdc.connector.packet.binlog.data.TableMapEvent;
 
 import java.util.BitSet;
+import java.util.Map;
 
 public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializer {
     @Override
-    public BinLogData deserialize(PacketIO packetIO, BinLogStatus binLogStatus, BinLogHeader header) {
+    public BinLogData deserialize(PacketIO packetIO, BinLogStatus binLogStatus, BinLogHeader header, Map<Long, TableMapEvent> tableMap) {
         long tableId = packetIO.readLong(6);
         packetIO.skip(2); // reserved
         int lengthOfDatabaseName = packetIO.readInt(1);
@@ -54,7 +55,7 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
                 case ENUM:
                 case SET:
                 case STRING:
-                    metadata[i] = toBigEndeanInt(metadataBlock, blockIdx, 2);
+                    metadata[i] = toBigEndianInt(metadataBlock, blockIdx, 2);
                 case BIT:
                 case VARCHAR:
                 case NEWDECIMAL:
@@ -82,7 +83,7 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
         return metadata;
     }
 
-    private int toBigEndeanInt(byte[] metadataBlock, int off, int len) {
+    private int toBigEndianInt(byte[] metadataBlock, int off, int len) {
         int value = 0;
         for (int i = 0 ; i < len ; i++) {
             value = (value << 8) | Byte.toUnsignedInt(metadataBlock[off + i]);

@@ -12,6 +12,14 @@ public class BinLogEvent {
         this.data = data;
     }
 
+    public BinLogHeader getHeader() {
+        return header;
+    }
+
+    public BinLogData getData() {
+        return data;
+    }
+
     public static class Unknown extends BinLogEvent {
         private Unknown() {
             super(null, null);
