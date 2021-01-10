@@ -1,7 +1,7 @@
 package mariadbcdc.connector.packet.binlog.des;
 
 import mariadbcdc.connector.FieldType;
-import mariadbcdc.connector.io.PacketIO;
+import mariadbcdc.connector.io.ReadPacketData;
 import mariadbcdc.connector.packet.binlog.BinLogData;
 import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.BinLogStatus;
@@ -12,24 +12,27 @@ import java.util.Map;
 
 public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializer {
     @Override
-    public BinLogData deserialize(PacketIO packetIO, BinLogStatus binLogStatus, BinLogHeader header, Map<Long, TableMapEvent> tableMap) {
-        long tableId = packetIO.readLong(6);
-        packetIO.skip(2); // reserved
-        int lengthOfDatabaseName = packetIO.readInt(1);
-        String databaseName = packetIO.readStringNul();
-        int lengthOfTableName = packetIO.readInt(1);
-        String tableName = packetIO.readStringNul();
-        int numberOfColumns = packetIO.readLengthEncodedInt();
-        byte[] columnTypes = packetIO.readBytes(new byte[numberOfColumns], 0, numberOfColumns);
+    public BinLogData deserialize(ReadPacketData readPacketData, BinLogStatus binLogStatus, BinLogHeader header, Map<Long, TableMapEvent> tableMap) {
+        long tableId = readPacketData.readLong(6);
+        readPacketData.skip(2); // reserved
+        int lengthOfDatabaseName = readPacketData.readInt(1);
+        String databaseName = readPacketData.readStringNul();
+        int lengthOfTableName = readPacketData.readInt(1);
+        String tableName = readPacketData.readStringNul();
+        int numberOfColumns = readPacketData.readLengthEncodedInt();
+        byte[] columnTypes = new byte[numberOfColumns];
+        readPacketData.readBytes(columnTypes);
         FieldType[] fieldTypes = new FieldType[columnTypes.length];
         for (int i = 0; i < columnTypes.length; i++) {
             fieldTypes[i] = FieldType.byValue(Byte.toUnsignedInt(columnTypes[i]));
         }
-        int lengthOfMetadata = packetIO.readLengthEncodedInt();
-        byte[] metadataBlock = packetIO.readBytes(new byte[lengthOfMetadata], 0, lengthOfMetadata);
+        int lengthOfMetadata = readPacketData.readLengthEncodedInt();
+        byte[] metadataBlock = new byte[lengthOfMetadata];
+        readPacketData.readBytes(metadataBlock);
         int[] metadata = toMetaData(metadataBlock, fieldTypes);
-        int bitfieldLen = packetIO.remainingBlock();
-        byte[] bitField = packetIO.readBytes(new byte[bitfieldLen], 0, bitfieldLen);
+        int bitfieldLen = readPacketData.remaining();
+        byte[] bitField = new byte[bitfieldLen];
+        readPacketData.readBytes(bitField);
 
         return new TableMapEvent(
                 tableId,
@@ -55,13 +58,13 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
                 case ENUM:
                 case SET:
                 case STRING:
-                    metadata[i] = toBigEndianInt(metadataBlock, blockIdx, 2);
+                    metadata[i] = ByteUtils.toBigEndianInt(metadataBlock, blockIdx, 2);
                 case BIT:
                 case VARCHAR:
                 case NEWDECIMAL:
                 case DECIMAL:
                 case VAR_STRING:
-                    metadata[i] = toInt(metadataBlock, blockIdx, 2);
+                    metadata[i] = ByteUtils.toLittleEndianInt(metadataBlock, blockIdx, 2);
                     blockIdx += 2;
                     break;
                 case TINY_BLOB:
@@ -83,19 +86,4 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
         return metadata;
     }
 
-    private int toBigEndianInt(byte[] metadataBlock, int off, int len) {
-        int value = 0;
-        for (int i = 0 ; i < len ; i++) {
-            value = (value << 8) | Byte.toUnsignedInt(metadataBlock[off + i]);
-        }
-        return value;
-    }
-
-    private int toInt(byte[] metadataBlock, int off, int len) {
-        int value = 0;
-        for (int i = 0 ; i < len ; i++) {
-            value |= Byte.toUnsignedInt(metadataBlock[off + i]) << (i * 8);
-        }
-        return value;
-    }
 }

@@ -1,7 +1,6 @@
 package mariadbcdc.connector.handler;
 
 import mariadbcdc.connector.io.Either;
-import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.packet.OkPacket;
 import mariadbcdc.connector.packet.ReadPacketReader;
 import mariadbcdc.connector.packet.WritePacketWriter;

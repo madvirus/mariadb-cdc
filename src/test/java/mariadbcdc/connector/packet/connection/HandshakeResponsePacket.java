@@ -1,9 +1,9 @@
 package mariadbcdc.connector.packet.connection;
 
-import mariadbcdc.connector.io.ByteWriter;
 import mariadbcdc.connector.CapabilityFlag;
 import mariadbcdc.connector.Collation;
 import mariadbcdc.connector.MariadbPassword;
+import mariadbcdc.connector.io.ByteWriter;
 import mariadbcdc.connector.packet.WritePacket;
 
 import java.math.BigInteger;

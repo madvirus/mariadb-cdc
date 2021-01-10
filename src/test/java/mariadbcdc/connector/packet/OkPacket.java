@@ -1,8 +1,8 @@
 package mariadbcdc.connector.packet;
 
 import mariadbcdc.connector.CapabilityFlag;
-import mariadbcdc.connector.io.ReadPacketData;
 import mariadbcdc.connector.ServerStatus;
+import mariadbcdc.connector.io.ReadPacketData;
 
 public class OkPacket implements ReadPacket {
     private int sequenceNumber;

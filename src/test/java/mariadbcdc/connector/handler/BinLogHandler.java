@@ -1,15 +1,13 @@
 package mariadbcdc.connector.handler;
 
-import mariadbcdc.connector.io.DumpUtil;
 import mariadbcdc.connector.io.Either;
-import mariadbcdc.connector.io.PacketIO;
+import mariadbcdc.connector.io.ReadPacketData;
 import mariadbcdc.connector.packet.ErrPacket;
+import mariadbcdc.connector.packet.ReadPacketReader;
 import mariadbcdc.connector.packet.binlog.*;
 import mariadbcdc.connector.packet.binlog.data.TableMapEvent;
 import mariadbcdc.connector.packet.binlog.des.BinLogDataDeserializer;
 import mariadbcdc.connector.packet.binlog.des.BinLogDataDeserializers;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,21 +17,22 @@ import java.util.Map;
 public class BinLogHandler {
     private Logger logger = LoggerFactory.getLogger(getClass());
 
-    private final PacketIO packetIO;
+    private ReadPacketReader readPacketReader;
     private final String checksum;
 
     private Map<Long, TableMapEvent> tableMap = new HashMap<>();
 
-    public BinLogHandler(PacketIO packetIO, String checksum) {
-        this.packetIO = packetIO;
+    public BinLogHandler(ReadPacketReader readPacketReader, String checksum) {
+        this.readPacketReader = readPacketReader;
         this.checksum = checksum;
     }
 
     public Either<ErrPacket, BinLogEvent> readBinLogEvent() {
-        BinLogStatus binLogStatus = readBinLogStatus();
+        ReadPacketData readPacketData = readPacketReader.readPacketData();
+        BinLogStatus binLogStatus = getBinLogStatus(readPacketData);
         int status = binLogStatus.getStatus();
         if (status == 0x00) { // OK
-            BinLogEvent binLogEvent = readBinLogEvent(binLogStatus);
+            BinLogEvent binLogEvent = readBinLogEvent(binLogStatus, readPacketData);
             if (binLogEvent != null && binLogEvent.getHeader() != null && binLogEvent.getHeader().getEventType() == BinlogEventType.TABLE_MAP_EVENT) {
                 TableMapEvent tableMapEvent = (TableMapEvent) binLogEvent.getData();
                 tableMap.put(tableMapEvent.getTableId(), tableMapEvent);
@@ -42,7 +41,7 @@ public class BinLogHandler {
                     Either.right(BinLogEvent.EOF) :
                     Either.right(binLogEvent);
         } else if (status == 0xFF) { // ERR
-            return Either.left(ErrPacket.from(binLogStatus, packetIO));
+            return Either.left(ErrPacket.from(binLogStatus, readPacketData));
         } else if (status == 0xFE) { // EOF
             return Either.right(BinLogEvent.EOF);
         } else {
@@ -50,30 +49,28 @@ public class BinLogHandler {
         }
     }
 
-    @NotNull
-    private BinLogStatus readBinLogStatus() {
-        BinLogStatus binLogStatus = new BinLogStatus(
-                packetIO.readInt(3), packetIO.readInt(1), packetIO.readInt(1)
-        );
-        if (logger.isTraceEnabled()) {
-            logger.trace("binLogStatus: {}", binLogStatus);
+    private BinLogStatus getBinLogStatus(ReadPacketData readPacketData) {
+        BinLogStatus binLogStatus = new BinLogStatus(readPacketData.getPacketLength(), readPacketData.getSequenceNumber(),
+                readPacketData.readInt(1));
+        if (logger.isDebugEnabled()) {
+            logger.debug("binLogStatus: {}", binLogStatus);
         }
         return binLogStatus;
     }
 
-    private BinLogEvent readBinLogEvent(BinLogStatus binLogStatus) {
-        BinLogHeader header = readBinLogHeader();
-        BinLogData data = readBinLogData(binLogStatus, header);
+    private BinLogEvent readBinLogEvent(BinLogStatus binLogStatus, ReadPacketData readPacketData) {
+        BinLogHeader header = readBinLogHeader(readPacketData);
+        BinLogData data = readBinLogData(binLogStatus, header, readPacketData);
         return new BinLogEvent(header, data);
     }
 
-    private BinLogHeader readBinLogHeader() {
-        long timestamp = packetIO.readLong(4) * 1000L;
-        int code = packetIO.readInt(1);
-        long serverId = packetIO.readLong(4);
-        long eventLength = packetIO.readLong(4);
-        long nextPosition = packetIO.readLong(4);
-        int flags = packetIO.readInt(2);
+    private BinLogHeader readBinLogHeader(ReadPacketData readPacketData) {
+        long timestamp = readPacketData.readLong(4) * 1000L;
+        int code = readPacketData.readInt(1);
+        long serverId = readPacketData.readLong(4);
+        long eventLength = readPacketData.readLong(4);
+        long nextPosition = readPacketData.readLong(4);
+        int flags = readPacketData.readInt(2);
         BinLogHeader header = new BinLogHeader(
                 timestamp,
                 code,
@@ -82,36 +79,18 @@ public class BinLogHandler {
                 nextPosition,
                 flags
         );
-        if (logger.isTraceEnabled()) {
-            logger.trace("binlog header: {}", header);
+        if (logger.isDebugEnabled()) {
+            logger.debug("binlog header: {}", header);
         }
         return header;
     }
 
-    @Nullable
-    private BinLogData readBinLogData(BinLogStatus binLogStatus, BinLogHeader header) {
-        if (logger.isTraceEnabled()) {
-             packetIO.startDump();
-        }
-        packetIO.startBlock((int) header.getEventDataLength() - checksumSize());
+    private BinLogData readBinLogData(BinLogStatus binLogStatus, BinLogHeader header, ReadPacketData readPacketData) {
+        readPacketData.endBlock(readPacketData.getPacketLength() - checksumSize());
         BinLogDataDeserializer deserializer = BinLogDataDeserializers.getDeserializer(header.getEventType());
-        BinLogData data = null;
-        if (deserializer != null) {
-            data = deserializer.deserialize(packetIO, binLogStatus, header, tableMap);
-        } else {
-            packetIO.skipRemaining();
-        }
-        packetIO.skip(checksumSize());
-        if (logger.isTraceEnabled()) {
-            byte[] bytes = packetIO.finishDump();
-            StringBuilder sb = new StringBuilder();
-            DumpUtil.dumpHex(sb, bytes, 0, bytes.length);
-            logger.trace("bin log hex: \n{}", sb.toString());
-        }
-        if (logger.isTraceEnabled()) {
-            logger.trace("binlog data: {}", data);
-        }
-        return data;
+        return deserializer != null ?
+            deserializer.deserialize(readPacketData, binLogStatus, header, tableMap) :
+                null;
     }
 
     private int checksumSize() {

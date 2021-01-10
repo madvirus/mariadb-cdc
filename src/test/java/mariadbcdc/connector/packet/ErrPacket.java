@@ -1,6 +1,5 @@
 package mariadbcdc.connector.packet;
 
-import mariadbcdc.connector.io.PacketIO;
 import mariadbcdc.connector.io.ReadPacketData;
 import mariadbcdc.connector.packet.binlog.BinLogStatus;
 
@@ -15,6 +14,46 @@ public class ErrPacket implements ReadPacket {
     private String sqlStateMarker;
     private String sqlState;
     private String errorMessage;
+
+    public int getSequenceNumber() {
+        return sequenceNumber;
+    }
+
+    public int getHeader() {
+        return header;
+    }
+
+    public int getErrorCode() {
+        return errorCode;
+    }
+
+    public int getStage() {
+        return stage;
+    }
+
+    public int getMaxStage() {
+        return maxStage;
+    }
+
+    public int getProgress() {
+        return progress;
+    }
+
+    public String getProgressInfo() {
+        return progressInfo;
+    }
+
+    public String getSqlStateMarker() {
+        return sqlStateMarker;
+    }
+
+    public String getSqlState() {
+        return sqlState;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
 
     public static ErrPacket from(ReadPacketData readPacketData) {
         ErrPacket errPacket = new ErrPacket();
@@ -39,26 +78,25 @@ public class ErrPacket implements ReadPacket {
         return errPacket;
     }
 
-    public static ErrPacket from(BinLogStatus binLogStatus, PacketIO packetIO) {
+    public static ErrPacket from(BinLogStatus binLogStatus, ReadPacketData readPacketData) {
         ErrPacket errPacket = new ErrPacket();
         errPacket.sequenceNumber = binLogStatus.getSeq();
         errPacket.header = binLogStatus.getStatus();
-        packetIO.startBlock(binLogStatus.getLength() - 1); // -1은 header 값
 
-        errPacket.errorCode = packetIO.readInt(2);
+        errPacket.errorCode = readPacketData.readInt(2);
         if (errPacket.errorCode == 0xFFFF) {
-            errPacket.stage = packetIO.readInt(1);
-            errPacket.maxStage = packetIO.readInt(1);
-            errPacket.progress = packetIO.readInt(3);
-            errPacket.progressInfo = packetIO.readLengthEncodedString();
+            errPacket.stage = readPacketData.readInt(1);
+            errPacket.maxStage = readPacketData.readInt(1);
+            errPacket.progress = readPacketData.readInt(3);
+            errPacket.progressInfo = readPacketData.readLengthEncodedString();
         } else {
-            int ch = packetIO.readInt(1);
+            int ch = readPacketData.readInt(1);
             if (ch == '#') {
                 errPacket.sqlStateMarker = "#";
-                errPacket.sqlState = packetIO.readString(5);
-                errPacket.errorMessage = packetIO.readStringEOF();
+                errPacket.sqlState = readPacketData.readString(5);
+                errPacket.errorMessage = readPacketData.readStringEOF();
             } else {
-                errPacket.errorMessage = ((char)ch) + packetIO.readStringEOF();
+                errPacket.errorMessage = ((char)ch) + readPacketData.readStringEOF();
             }
         }
         return errPacket;

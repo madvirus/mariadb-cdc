@@ -1,8 +1,5 @@
 package mariadbcdc.connector.io;
 
-import mariadbcdc.connector.packet.ErrPacket;
-import mariadbcdc.connector.packet.result.ResultSetPacket;
-
 public abstract class Either<L, R> {
     public boolean isLeft() { return false; }
 

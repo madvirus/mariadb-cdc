@@ -6,10 +6,8 @@ import mariadbcdc.connector.handler.HandshakeSuccessResult;
 import mariadbcdc.connector.handler.RegisterSlaveHandler;
 import mariadbcdc.connector.io.Either;
 import mariadbcdc.connector.io.PacketIO;
-import mariadbcdc.connector.packet.ComQuitPacket;
-import mariadbcdc.connector.packet.OkPacket;
-import mariadbcdc.connector.packet.ReadPacketReader;
-import mariadbcdc.connector.packet.WritePacketWriter;
+import mariadbcdc.connector.packet.*;
+import mariadbcdc.connector.packet.binlog.BinLogEvent;
 import mariadbcdc.connector.packet.query.ComQueryPacket;
 import mariadbcdc.connector.packet.result.ResultSetPacket;
 import mariadbcdc.connector.packet.result.ResultSetRow;
@@ -93,11 +91,11 @@ class BinLogSession {
         handler.startBinlogDump(binlogFile, binlogPosition, slaveServerId);
     }
 
-    public void readBinlog() {
+    public Either<ErrPacket, BinLogEvent> readBinlog() {
         if (binLogHandler == null) {
-            binLogHandler = new BinLogHandler(packetIO, checksum);
+            binLogHandler = new BinLogHandler(readPacketReader, checksum);
         }
-        binLogHandler.readBinLogEvent();
+        return binLogHandler.readBinLogEvent();
     }
 
     public String getBinlogFile() {

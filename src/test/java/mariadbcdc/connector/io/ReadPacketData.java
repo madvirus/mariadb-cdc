@@ -9,6 +9,8 @@ public class ReadPacketData {
     private byte[] bytes;
     private int idx = 0;
 
+    private int packetLengthOrigin;
+
     public ReadPacketData(int packetLength, int sequenceNumber, byte[] bytes) {
         this.packetLength = packetLength;
         this.sequenceNumber = sequenceNumber;
@@ -34,6 +36,14 @@ public class ReadPacketData {
         return bytes[idx++];
     }
 
+    public int readBigEndianInt(int len) {
+        int value = 0;
+        for (int i = 0; i < len; i++) {
+            value = (value << 8) | Byte.toUnsignedInt(get());
+        }
+        return value;
+    }
+
     public int readInt(int len) {
         if (len > 4) throw new UnsupportedLengthException(len);
         int value = 0;
@@ -43,10 +53,19 @@ public class ReadPacketData {
         return value;
     }
 
+    public long readBigEndianLong(int len) {
+        long value = 0;
+        for (int i = 0; i < len; i++) {
+            value = (value << 8) | Byte.toUnsignedInt(get());
+        }
+        return value;
+    }
+
     public long readLong(int len) {
         long value = 0;
         for (int i = 0; i < len; i++) {
-            value += ((long) (get() & 0xFF)) << (i * 8);
+            int bval = get() & 0xFF;
+            value += ((long) bval) << (i * 8);
         }
         return value;
     }
@@ -142,20 +161,41 @@ public class ReadPacketData {
     }
 
     public byte[] readBytes(int len) {
-        return getBytes(idx, len);
+        byte[] result = new byte[len];
+        readBytes(result);
+        return result;
     }
 
-    private byte[] getBytes(int offset, int len) {
+    public void readBytes(byte[] bitMap) {
+        readBytesInternal(bitMap, idx, 0, bitMap.length);
+    }
+
+    private void readBytesInternal(byte[] result, int offset, int destPos, int len) {
         if (offset + len > packetLength) {
             throw new BinLogEOFException(
                     String.format("getBytes(%d, %d), packetLength: %d",
                             offset, len, packetLength)
             );
         }
-        byte[] result = new byte[len];
         System.arraycopy(bytes, offset, result, 0, len);
         idx += len;
-        return result;
+    }
+
+//    private byte[] getBytes(int offset, int len) {
+//        if (offset + len > packetLength) {
+//            throw new BinLogEOFException(
+//                    String.format("getBytes(%d, %d), packetLength: %d",
+//                            offset, len, packetLength)
+//            );
+//        }
+//        byte[] result = new byte[len];
+//        System.arraycopy(bytes, offset, result, 0, len);
+//        idx += len;
+//        return result;
+//    }
+
+    public void skip(int n) {
+        idx += n;
     }
 
     public String toString() {
@@ -172,5 +212,18 @@ public class ReadPacketData {
 
     public byte[] getRawBodyBytes() {
         return bytes;
+    }
+
+    public void endBlock(int endBlockIdx) {
+        this.packetLengthOrigin = this.packetLength;
+        this.packetLength = endBlockIdx;
+    }
+
+    public void resetEndBlock() {
+        this.packetLength = this.packetLengthOrigin;
+    }
+
+    public int remaining() {
+        return packetLength - idx;
     }
 }

@@ -6,10 +6,14 @@ create table test.member (
   agree boolean,
   reg datetime default current_timestamp(),
   primary key(id)
-) engine = innodb;
+)
+COLLATE='utf8_general_ci'
+engine = innodb;
 
 create table test.user (
   login_id varchar(200),
   email varchar(200),
   primary key(login_id)
-) engine = innodb;
+)
+COLLATE='utf8_general_ci'
+engine = innodb;

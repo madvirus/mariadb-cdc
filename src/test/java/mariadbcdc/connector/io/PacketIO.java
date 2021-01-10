@@ -1,84 +1,19 @@
 package mariadbcdc.connector.io;
 
-import mariadbcdc.connector.BinLogBadPacketException;
-
-import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 public class PacketIO {
-    private final DumpableInputStream is;
-    // private final InputStream is;
+    private final InputStream is;
     private final OutputStream os;
 
     private byte[] readBody = new byte[16777215];
-    private int remainingBlock;
 
     public PacketIO(InputStream is, OutputStream os) {
-        this.is = new DumpableInputStream(is);
+        this.is = is;
         this.os = os;
-    }
-
-    private class DumpableInputStream {
-        private boolean dumping;
-        private ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        private InputStream is;
-
-        public DumpableInputStream(InputStream is) {
-            this.is = is;
-        }
-
-        public int read() throws IOException {
-            int b = is.read();
-            if (dumping && b != -1) {
-                bos.write(b);
-            }
-            return b;
-        }
-
-        public int read(byte[] b, int off, int len) throws IOException {
-            int readCnt = is.read(b, off, len);
-            if (dumping && readCnt > 0) {
-                bos.write(b, off, readCnt);
-            }
-            return readCnt;
-        }
-
-        private byte[] temp = new byte[16777215];
-        public long skip(long n) throws IOException {
-            if (dumping) {
-                return this.read(temp, 0, (int) n);
-            } else {
-                return is.skip(n);
-            }
-        }
-
-        public void startDump() {
-            bos.reset();
-            dumping = true;
-        }
-
-        public void finishDump() {
-            dumping = false;
-        }
-
-        public byte[] getDumpedBytes() {
-            return bos.toByteArray();
-        }
-    }
-
-    public void startBlock(int blockLength) {
-        this.remainingBlock = blockLength;
-    }
-
-    public void startDump() {
-        is.startDump();
-    }
-
-    public byte[] finishDump() {
-        is.finishDump();
-        return is.getDumpedBytes();
     }
 
     private int read() {
@@ -87,7 +22,6 @@ public class PacketIO {
             if (read == -1) {
                 throw new BinLogEOFException("EOF");
             }
-            remainingBlock--;
             return read;
         } catch (IOException e) {
             throw new BinLogIOException(e);
@@ -95,16 +29,11 @@ public class PacketIO {
     }
 
     public int readInt(int len) {
-        try {
-            int value = 0;
-            for (int i = 0; i < len; i++) {
-                value += is.read() << (i * 8);
-            }
-            remainingBlock -= len;
-            return value;
-        } catch (IOException e) {
-            throw new BinLogIOException(e);
+        int value = 0;
+        for (int i = 0; i < len; i++) {
+            value += read() << (i * 8);
         }
+        return value;
     }
 
     public long readLong(int len) {
@@ -117,119 +46,26 @@ public class PacketIO {
                 }
                 value += ((long) read << (i * 8));
             }
-            remainingBlock -= len;
             return value;
         } catch (IOException e) {
             throw new BinLogIOException(e);
         }
     }
 
-    public String readString(int len) {
-        try {
-            int read = is.read(readBody, 0, len);
-            if (read == -1) {
-                throw new BinLogEOFException("-1");
-            }
-            remainingBlock -= len;
-            return new String(readBody, 0, len);
-        } catch (IOException e) {
-            throw new BinLogIOException(e);
-        }
-    }
-
-    public int readLengthEncodedInt() {
-        int length = readLengthEncoded();
-        if (length < 0xFB) {
-            return length;
-        }
-        return readInt(length);
-    }
-
-    public long readLengthEncodedLong() {
-        int length = readLengthEncoded();
-        if (length < 0xFB) {
-            return length;
-        }
-        return readLong(length);
-    }
-
-    public String readLengthEncodedString() {
-        int length = readLengthEncoded();
-        if (length == -1) return null;
-        return readString(length);
-    }
-
-    private int readLengthEncoded() {
-        int first = read();
-        if (first < 0xFB)
-            return first;
-        if (first == 0xFB) return -1;
-        if (first == 0xFC) {
-            return readInt(2);
-        }
-        if (first == 0xFD) {
-            return readInt(3);
-        }
-        if (first == 0xFE) {
-            // TODO 검토 필요 return readInt(8);
-            throw new UnsupportedLengthException(8);
-        }
-        throw new BinLogBadPacketException("invalid length encoded: " + Integer.toHexString(first));
-    }
-
-    public void skip(int length) {
-        try {
-            is.skip(length);
-            remainingBlock -= length;
-        } catch (IOException e) {
-            throw new BinLogIOException(e);
-        }
-    }
-
-    public String readStringNul() {
-        try {
-            int end = 0;
-            while (true) {
-                int b = is.read();
-                if (b == -1) {
-                    throw new BinLogEOFException("EOF");
-                }
-                remainingBlock--;
-                if (b == 0) {
-                    break;
-                }
-                readBody[end] = (byte)b;
-                end++;
-            }
-            return new String(readBody, 0, end);
-        } catch (IOException e) {
-            throw new BinLogIOException(e);
-        }
-    }
-
-    public String readStringEOF() {
-        return readString(remainingBlock);
-    }
-
-    public void skipRemaining() {
-        skip(remainingBlock);
-    }
-
     public byte[] readBytes(byte[] buff, int offset, int len) {
         try {
-            int read = is.read(buff, offset, len);
-            if (read == -1) {
-                throw new BinLogEOFException("-1");
+            int remaining = len;
+            while (remaining != 0) {
+                int readCnt = is.read(buff, offset + len - remaining, remaining);
+                if (readCnt == -1) {
+                    throw new EOFException();
+                }
+                remaining -= readCnt;
             }
-            remainingBlock -= len;
             return buff;
         } catch (IOException e) {
             throw new BinLogIOException(e);
         }
-    }
-
-    public int remainingBlock() {
-        return remainingBlock;
     }
 
     public void writeInt(int value, int len) {

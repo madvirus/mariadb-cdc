@@ -5,10 +5,7 @@ import org.mariadb.jdbc.internal.util.Utils;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class MariadbPasswordTest {
 

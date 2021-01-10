@@ -1,7 +1,7 @@
 package mariadbcdc.connector.handler;
 
-import mariadbcdc.connector.*;
-import mariadbcdc.connector.io.PacketIO;
+import mariadbcdc.connector.BinLogBadPacketException;
+import mariadbcdc.connector.CapabilityFlag;
 import mariadbcdc.connector.io.ReadPacketData;
 import mariadbcdc.connector.packet.*;
 import mariadbcdc.connector.packet.connection.AuthSwitchRequestPacket;

@@ -9,20 +9,11 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.BitSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class BinLogReaderTest {
     private Logger logger = LoggerFactory.getLogger(getClass());
-
-    @Test
-    void name() {
-        byte[] a = new byte[] {(byte)0x3E};
-        BitSet bitSet = BitSet.valueOf(a);
-        System.out.println(bitSet.get(0));
-        System.out.println(bitSet);
-    }
 
     @Test
     void todo() throws InterruptedException {
@@ -32,6 +23,8 @@ public class BinLogReaderTest {
         BinlogPosition realPos = helper.getCurrentPosition();
 
         BinLogReader reader = new BinLogReader("localhost", 3306, "root", "root");
+        BinLogListener binLogListener = new TestBinLogListener();
+        reader.setBinLogListener(binLogListener);
         reader.connect();
         BinlogPosition binlogPosition = reader.getPosition();
 
@@ -60,7 +53,10 @@ public class BinLogReaderTest {
 
         assertThat(binlogPosition.getFilename()).isEqualTo(realPos.getFilename());
         assertThat(binlogPosition.getPosition()).isEqualTo(realPos.getPosition());
-        System.out.println("한글 출력!");
+    }
+
+    private class TestBinLogListener implements BinLogListener {
+
     }
 
     private void runAsync(Runnable runnable) {

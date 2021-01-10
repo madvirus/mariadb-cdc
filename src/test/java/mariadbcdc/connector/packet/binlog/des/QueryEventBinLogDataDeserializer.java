@@ -1,6 +1,6 @@
 package mariadbcdc.connector.packet.binlog.des;
 
-import mariadbcdc.connector.io.PacketIO;
+import mariadbcdc.connector.io.ReadPacketData;
 import mariadbcdc.connector.packet.binlog.BinLogData;
 import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.BinLogStatus;
@@ -11,16 +11,16 @@ import java.util.Map;
 
 public class QueryEventBinLogDataDeserializer implements BinLogDataDeserializer {
     @Override
-    public BinLogData deserialize(PacketIO packetIO, BinLogStatus binLogStatus, BinLogHeader header, Map<Long, TableMapEvent> tableMap) {
-        long threadId = packetIO.readLong(4);
-        long executeTime = packetIO.readLong(4);
-        int lengthOfDatabaseName = packetIO.readInt(1);
-        int errorCode = packetIO.readInt(2);
-        int lengthOfVariableBlock = packetIO.readInt(2);
+    public BinLogData deserialize(ReadPacketData readPacketData, BinLogStatus binLogStatus, BinLogHeader header, Map<Long, TableMapEvent> tableMap) {
+        long threadId = readPacketData.readLong(4);
+        long executeTime = readPacketData.readLong(4);
+        int lengthOfDatabaseName = readPacketData.readInt(1);
+        int errorCode = readPacketData.readInt(2);
+        int lengthOfVariableBlock = readPacketData.readInt(2);
         byte[] statusVariables = new byte[lengthOfVariableBlock];
-        packetIO.readBytes(statusVariables, 0, statusVariables.length);
-        String defaultDatabase = packetIO.readStringNul();
-        String sql = packetIO.readStringEOF();
+        readPacketData.readBytes(statusVariables);
+        String defaultDatabase = readPacketData.readStringNul();
+        String sql = readPacketData.readStringEOF();
 
         QueryEvent queryEvent = new QueryEvent(
                 threadId,
