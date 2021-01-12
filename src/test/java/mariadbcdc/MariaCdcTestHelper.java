@@ -1,7 +1,5 @@
 package mariadbcdc;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.MariaDBContainer;
 
 import java.io.IOException;
@@ -11,6 +9,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
@@ -266,6 +265,81 @@ public class MariaCdcTestHelper {
             stmt1.executeUpdate("truncate table test.member");
         } catch (SQLException ex) {
             throw new RuntimeException(ex);
+        }
+    }
+    
+    public MemberInserter withId(Long id) {
+        return new MemberInserter().withId(id);
+    }
+    
+    class MemberInserter {
+        private long id;
+        private String name;
+        private String email;
+        private String useYn;
+        private boolean agree;
+        private String description;
+        private LocalDate birthday;
+        private LocalDateTime reg;
+
+        public MemberInserter withId(long id) {
+            this.id = id;
+            return this;
+        }
+
+        public MemberInserter withName(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public MemberInserter withEmail(String email) {
+            this.email = email;
+            return this;
+        }
+
+        public MemberInserter withUseYn(String useYn) {
+            this.useYn = useYn;
+            return this;
+        }
+
+        public MemberInserter withAgree(boolean agree) {
+            this.agree = agree;
+            return this;
+        }
+
+        public MemberInserter withDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public MemberInserter withBirthday(LocalDate birthday) {
+            this.birthday = birthday;
+            return this;
+        }
+
+        public MemberInserter withReg(LocalDateTime reg) {
+            this.reg = reg;
+            return this;
+        }
+
+        public void insert() {
+            try (Connection conn = getConnection();
+                 PreparedStatement pstmt = conn.prepareStatement("insert into test.member (id, name, email, use_yn, agree, description, birthday, reg) " +
+                         "values (?, ?, ?, ?, ?, ?, ?, ?)")
+            ) {
+                pstmt.setLong(1, id);
+                pstmt.setString(2, name);
+                pstmt.setString(3, email);
+                pstmt.setString(4, useYn);
+                pstmt.setBoolean(5, agree);
+                pstmt.setString(6, description);
+                pstmt.setDate(7, birthday == null ? null : java.sql.Date.valueOf(birthday));
+                pstmt.setTimestamp(8, reg == null ? null : Timestamp.valueOf(reg));
+                pstmt.executeUpdate();
+            } catch (SQLException ex) {
+                throw new RuntimeException(ex);
+            }
+
         }
     }
 }
