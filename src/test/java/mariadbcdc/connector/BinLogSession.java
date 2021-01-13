@@ -85,9 +85,9 @@ class BinLogSession {
     public void registerSlave() {
         RegisterSlaveHandler handler = new RegisterSlaveHandler(clientCapabilities, readPacketReader, writePacketWriter);
         this.masterServerId = handler.getServerId();
-        logger.info("serverId: {}", masterServerId);
+        logger.debug("serverId: {}", masterServerId);
         checksum = handler.handleChecksum();
-        logger.info("checksum: {}", checksum);
+        logger.debug("checksum: {}", checksum);
         handler.startBinlogDump(binlogFile, binlogPosition, slaveServerId);
     }
 
@@ -107,7 +107,7 @@ class BinLogSession {
     }
 
     public void close() {
-        logger.info("closing session");
+        logger.debug("closing session");
         try {
             writePacketWriter.write(ComQuitPacket.INSTANCE);
         } catch (Exception e) {
@@ -124,6 +124,6 @@ class BinLogSession {
             socket.close();
         } catch (IOException e) {
         }
-        logger.info("closed session");
+        logger.debug("closed session");
     }
 }

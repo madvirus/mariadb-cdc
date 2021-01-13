@@ -36,19 +36,19 @@ public class HandshakeHandler {
 
     public HandshakeSuccessResult handshake() {
         this.packet = receiveInitialHandshakePacket();
-        logger.info("received initial handshake packet: {}", packet);
+        logger.debug("received initial handshake packet: {}", packet);
         serverCapabilities = packet.getServerCapabilities();
 
         HandshakeResponsePacket respPacket = createHandshakeResponsePacket(packet);
         writer.write(respPacket);
-        logger.info("sended handshake response packet: {}", respPacket);
+        logger.debug("sended handshake response packet: {}", respPacket);
 
         ReadPacket responsePacket = receiveServerResponse();
         if (responsePacket instanceof OkPacket) {
-            logger.info("handshake OK: {}", responsePacket);
+            logger.debug("handshake OK: {}", responsePacket);
             return createHandshakeSuccessResult();
         } else if (responsePacket instanceof ErrPacket) {
-            logger.info("handshake FAIL: {}", responsePacket);
+            logger.debug("handshake FAIL: {}", responsePacket);
             throw new BinLogHandshakeFailException();
         } else if (responsePacket instanceof AuthSwitchRequestPacket) {
             handleAuthSwitch(responsePacket);
@@ -69,20 +69,20 @@ public class HandshakeHandler {
     }
 
     private void handleAuthSwitch(ReadPacket responsePacket) {
-        logger.info("receive AuthSwitchRequestPacket: {}", responsePacket);
+        logger.debug("receive AuthSwitchRequestPacket: {}", responsePacket);
         AuthSwitchRequestPacket authSwitchReq = (AuthSwitchRequestPacket) responsePacket;
         if (!"mysql_native_password".equals(authSwitchReq.getAuthPluginName())) {
             throw new UnsupportedAuthPluginException(authSwitchReq.getAuthPluginName());
         }
         AuthSwitchResponsePacket authRespPacket = createAuthSwitchResponsePacket(authSwitchReq);
         writer.write(authRespPacket);
-        logger.info("sended auth switch response packet: {}", authRespPacket);
+        logger.debug("sended auth switch response packet: {}", authRespPacket);
 
         ReadPacket switchRespPacket = receiveServerResponse();
         if (switchRespPacket instanceof OkPacket) {
-            logger.info("handshake OK: {}", switchRespPacket);
+            logger.debug("handshake OK: {}", switchRespPacket);
         } else if (switchRespPacket instanceof ErrPacket) {
-            logger.info("handshake FAIL: {}", switchRespPacket);
+            logger.debug("handshake FAIL: {}", switchRespPacket);
             throw new BinLogHandshakeFailException();
         } else {
             throw new BinLogBadPacketException(String.format("bad handshake response packet: ", responsePacket));

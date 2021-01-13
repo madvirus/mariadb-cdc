@@ -52,8 +52,8 @@ public class BinLogHandler {
     private BinLogStatus getBinLogStatus(ReadPacketData readPacketData) {
         BinLogStatus binLogStatus = new BinLogStatus(readPacketData.getPacketLength(), readPacketData.getSequenceNumber(),
                 readPacketData.readInt(1));
-        if (logger.isDebugEnabled()) {
-            logger.debug("binLogStatus: {}", binLogStatus);
+        if (logger.isTraceEnabled()) {
+            logger.trace("binLogStatus: {}", binLogStatus);
         }
         return binLogStatus;
     }
@@ -79,8 +79,8 @@ public class BinLogHandler {
                 nextPosition,
                 flags
         );
-        if (logger.isDebugEnabled()) {
-            logger.debug("binlog header: {}", header);
+        if (logger.isTraceEnabled()) {
+            logger.trace("binlog header: {}", header);
         }
         return header;
     }

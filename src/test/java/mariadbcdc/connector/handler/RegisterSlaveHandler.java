@@ -61,6 +61,6 @@ public class RegisterSlaveHandler {
                 binlogFilename
         );
         writer.write(dumpPacket);
-        logger.info("sended BinlogDump: {}", dumpPacket);
+        logger.debug("start binlog dump");
     }
 }

@@ -22,10 +22,10 @@ public class WritePacketWriter {
         respPacket.writeTo(writer);
         WritePacketData writePacketData = new WritePacketData(writer.getSequenceNumber(), writeBody, writer.getPacketLength());
         writePacketData.send(packetIO);
-        if (logger.isDebugEnabled()) {
+        if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder();
             writePacketData.dump(sb);
-            logger.debug("write packet data: {}", sb.toString());
+            logger.trace("write packet data: {}", sb.toString());
         }
     }
 

@@ -3,12 +3,17 @@ package mariadbcdc.connector;
 import mariadbcdc.BinlogPosition;
 import mariadbcdc.MariaCdcTestHelper;
 import mariadbcdc.TestPair;
+import mariadbcdc.connector.packet.binlog.BinLogHeader;
+import mariadbcdc.connector.packet.binlog.data.RotateEvent;
+import mariadbcdc.connector.packet.binlog.data.TableMapEvent;
+import mariadbcdc.connector.packet.binlog.data.UpdateRowsEvent;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -56,7 +61,23 @@ public class BinLogReaderTest {
     }
 
     private class TestBinLogListener implements BinLogListener {
+        @Override
+        public void onRotateEvent(BinLogHeader header, RotateEvent data) {
+            logger.info("rate event: {}", data);
+        }
 
+        @Override
+        public void onTableMapEvent(BinLogHeader header, TableMapEvent data) {
+            logger.info("tableMap: {}", data);
+        }
+
+        @Override
+        public void onUpdateRowsEvent(BinLogHeader header, UpdateRowsEvent data) {
+            logger.info("updateRows:");
+            data.getPairs().forEach(pair -> {
+                logger.info("pair: {}, {}", Arrays.toString(pair.getBefore()), Arrays.toString(pair.getAfter()));
+            });
+        }
     }
 
     private void runAsync(Runnable runnable) {
