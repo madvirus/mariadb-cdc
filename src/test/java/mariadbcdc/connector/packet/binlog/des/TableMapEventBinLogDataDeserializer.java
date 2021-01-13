@@ -15,9 +15,9 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
     public BinLogData deserialize(ReadPacketData readPacketData, BinLogStatus binLogStatus, BinLogHeader header, Map<Long, TableMapEvent> tableMap) {
         long tableId = readPacketData.readLong(6);
         readPacketData.skip(2); // reserved
-        int lengthOfDatabaseName = readPacketData.readInt(1);
+        readPacketData.readInt(1); // skip lengthOfDatabaseName
         String databaseName = readPacketData.readStringNul();
-        int lengthOfTableName = readPacketData.readInt(1);
+        readPacketData.readInt(1); // skip lengthOfTableName
         String tableName = readPacketData.readStringNul();
         int numberOfColumns = readPacketData.readLengthEncodedInt();
         byte[] columnTypes = new byte[numberOfColumns];
@@ -36,13 +36,10 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
 
         return new TableMapEvent(
                 tableId,
-                lengthOfDatabaseName,
                 databaseName,
-                lengthOfTableName,
                 tableName,
                 numberOfColumns,
                 fieldTypes,
-                lengthOfMetadata,
                 metadata,
                 BitSet.valueOf(bitField)
         );

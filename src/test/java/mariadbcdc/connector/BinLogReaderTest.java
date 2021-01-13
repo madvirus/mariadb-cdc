@@ -8,13 +8,13 @@ import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.data.RotateEvent;
 import mariadbcdc.connector.packet.binlog.data.TableMapEvent;
 import mariadbcdc.connector.packet.binlog.data.UpdateRowsEvent;
+import mariadbcdc.connector.packet.binlog.data.XidEvent;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,7 +38,7 @@ public class BinLogReaderTest {
             Sleeps.sleep(3);
             try {
                 String post = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-                helper.updateMembers(TestPair.of(1L, "name" + post));
+                helper.updateMembers(TestPair.of(1L, "이름" + post));
                 logger.info("update Members");
             } catch (Exception e) {
                 logger.error("fail to update Members: ", e);
@@ -58,7 +58,7 @@ public class BinLogReaderTest {
     private class TestBinLogListener implements BinLogListener {
         @Override
         public void onRotateEvent(BinLogHeader header, RotateEvent data) {
-            logger.info("rate event: {}", data);
+            logger.info("rotate event: {}", data);
         }
 
         @Override
@@ -68,10 +68,15 @@ public class BinLogReaderTest {
 
         @Override
         public void onUpdateRowsEvent(BinLogHeader header, UpdateRowsEvent data) {
-            logger.info("updateRows:");
-            data.getPairs().forEach(pair -> {
-                logger.info("pair: {}, {}", Arrays.toString(pair.getBefore()), Arrays.toString(pair.getAfter()));
+            logger.info("updateRows: tableId={}, rows={}", data.getTableId(), data.getPairs().size());
+            data.getPairs().forEach(rp -> {
+                logger.info("before={}, after={}", rp.getBefore(), rp.getAfter());
             });
+        }
+
+        @Override
+        public void onXidEvent(BinLogHeader header, XidEvent data) {
+            logger.info("xid: {}", data);
         }
     }
 

@@ -16,7 +16,7 @@ public class WriteRowsEventBinLogDataDeserializer extends BaseRowsEventBinLogDat
     @Override
     public BinLogData deserialize(ReadPacketData readPacketData, BinLogStatus binLogStatus, BinLogHeader header, Map<Long, TableMapEvent> tableMap) {
         long tableId = readPacketData.readLong(6);
-        int flags = readPacketData.readInt(2);
+        readPacketData.readInt(2); // skip flags
         int numberOfColumns = readPacketData.readLengthEncodedInt();
         byte[] bitMap = new byte[(numberOfColumns + 7) / 8];
         readPacketData.readBytes(bitMap);

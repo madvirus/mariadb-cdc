@@ -2,6 +2,8 @@ package mariadbcdc.connector.io;
 
 import mariadbcdc.connector.BinLogBadPacketException;
 
+import java.nio.charset.StandardCharsets;
+
 public class ReadPacketData {
 
     private int packetLength;
@@ -77,7 +79,7 @@ public class ReadPacketData {
                             offset, len, packetLength)
             );
         }
-        String s = new String(bytes, offset, len);
+        String s = new String(bytes, offset, len, StandardCharsets.UTF_8);
         idx += len;
         return s;
     }

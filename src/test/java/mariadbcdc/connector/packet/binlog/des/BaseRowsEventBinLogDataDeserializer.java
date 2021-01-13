@@ -14,7 +14,7 @@ import java.util.BitSet;
 
 public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataDeserializer {
 
-    protected Object[] readColumnValues(BitSet columnUsed, BitSet nullBitmap, TableMapEvent tableMapEvent, ReadPacketData packetIO) {
+    protected Object[] readColumnValues(BitSet columnUsed, BitSet nullBitmap, TableMapEvent tableMapEvent, ReadPacketData readPacket) {
         int[] metadata = tableMapEvent.getMetadata();
         int colNum = tableMapEvent.getNumberOfColumns();
         FieldType[] fieldTypes = tableMapEvent.getFieldTypes();
@@ -27,7 +27,7 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
             }
             int valIdx = i - skipCount;
             if (!nullBitmap.get(valIdx)) {
-                values[valIdx] = readValue(fieldTypes[i], metadata[i], packetIO);
+                values[valIdx] = readValue(fieldTypes[i], metadata[i], readPacket);
             }
         }
         return values;
@@ -42,66 +42,66 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         return result;
     }
 
-    private Object readValue(FieldType fieldType, int metadata, ReadPacketData packetIO) {
+    private Object readValue(FieldType fieldType, int metadata, ReadPacketData readPacket) {
         switch (fieldType) {
             case BIT:
-                return readBit(metadata, packetIO);
+                return readBit(metadata, readPacket);
             case TINY:
-                return (int) ((byte) packetIO.readInt(1));
+                return (int) ((byte) readPacket.readInt(1));
             case SHORT:
-                return (int) ((short) packetIO.readInt(2));
+                return (int) ((short) readPacket.readInt(2));
             case YEAR:
-                return packetIO.readInt(2);
+                return readPacket.readInt(2);
             case INT24:
-                return (packetIO.readInt(3) << 8) >> 8;
+                return (readPacket.readInt(3) << 8) >> 8;
             case LONG:
-                return packetIO.readInt(4);
+                return readPacket.readInt(4);
             case LONGLONG:
-                return packetIO.readLong(8);
+                return readPacket.readLong(8);
             case FLOAT:
-                return Float.intBitsToFloat(packetIO.readInt(4));
+                return Float.intBitsToFloat(readPacket.readInt(4));
             case DOUBLE:
-                return Double.longBitsToDouble(packetIO.readInt(8));
+                return Double.longBitsToDouble(readPacket.readInt(8));
             case NEWDECIMAL:
-                return readNewDecimal(metadata, packetIO);
+                return readNewDecimal(metadata, readPacket);
             case BLOB:
             case TINY_BLOB:
             case MEDIUM_BLOB:
             case LONG_BLOB:
-                return readBlob(metadata, packetIO);
+                return readBlob(metadata, readPacket);
             case STRING:
             case SET:
             case ENUM:
-                return readString(metadata, packetIO);
+                return readString(metadata, readPacket);
             case VARCHAR:
             case VAR_STRING:
-                return readVarchar(metadata, packetIO);
+                return readVarchar(metadata, readPacket);
             case DATETIME:
-                return readDatetime(packetIO);
+                return readDatetime(readPacket);
             case DATETIME2:
-                return readDatetime2(metadata, packetIO);
+                return readDatetime2(metadata, readPacket);
             case TIME:
-                return readTime(packetIO);
+                return readTime(readPacket);
             case TIME2:
-                return readTime2(metadata, packetIO);
+                return readTime2(metadata, readPacket);
             case DATE:
-                return readDate(packetIO);
+                return readDate(readPacket);
             case TIMESTAMP:
-                return new Timestamp(packetIO.readLong(4) * 1000);
+                return new Timestamp(readPacket.readLong(4) * 1000);
             case TIMESTAMP2:
-                return readTimestamp2(metadata, packetIO);
+                return readTimestamp2(metadata, readPacket);
             case GEOMETRY:
-                return readGeometry(metadata, packetIO);
+                return readGeometry(metadata, readPacket);
             case JSON:
-                return readJson(metadata, packetIO);
+                return readJson(metadata, readPacket);
             default:
                 throw new UnsupportedOperationException("Unsupported type: " + fieldType);
         }
     }
 
-    private BitSet readBit(int metadata, ReadPacketData packetIO) {
+    private BitSet readBit(int metadata, ReadPacketData readPacket) {
         int bitLen = (metadata >> 8) * 8 + (metadata & 0xFF);
-        byte[] bytes = packetIO.readBytes((bitLen + 7) >> 3);
+        byte[] bytes = readPacket.readBytes((bitLen + 7) >> 3);
         for (int i = 0; i < bytes.length / 2; i++) {
             byte b1 = bytes[i];
             bytes[i] = bytes[bytes.length - 1 - i];
@@ -119,7 +119,7 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
     // copied from shyiko mysql binlog
     final int digPerDec = 9;
     final int[] digToBytes = {0, 1, 1, 2, 2, 3, 3, 4, 4, 4};
-    private Object readNewDecimal(int metadata, ReadPacketData packetIO) {
+    private Object readNewDecimal(int metadata, ReadPacketData readPacket) {
         int precision = metadata & 0xFF;
         int scale = metadata >> 8;
         int x = precision - scale;
@@ -128,7 +128,7 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         int decimalLength = (ipd << 2) + digToBytes[x - ipd * digPerDec] +
                 (fpd << 2) + digToBytes[scale - fpd * digPerDec];
 
-        return asBigDecimal(precision, scale, packetIO.readBytes(decimalLength));
+        return asBigDecimal(precision, scale, readPacket.readBytes(decimalLength));
     }
 
     /**
@@ -166,23 +166,23 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         return positive ? result : result.negate();
     }
 
-    private byte[] readBlob(int metadata, ReadPacketData packetIO) {
-        int len = packetIO.readInt(metadata);
-        return packetIO.readBytes(len);
+    private byte[] readBlob(int metadata, ReadPacketData readPacket) {
+        int len = readPacket.readInt(metadata);
+        return readPacket.readBytes(len);
     }
 
-    private String readVarchar(int metadata, ReadPacketData packetIO) {
-        int len = metadata <= 255 ? packetIO.readInt(1) : packetIO.readInt(2);
-        return packetIO.readString(len);
+    private String readVarchar(int metadata, ReadPacketData readPacket) {
+        int len = metadata <= 255 ? readPacket.readInt(1) : readPacket.readInt(2);
+        return readPacket.readString(len);
     }
 
-    private String readString(int metadata, ReadPacketData packetIO) {
+    private String readString(int metadata, ReadPacketData readPacket) {
         int len = metadata & 0xFF;
-        return packetIO.readString(len);
+        return readPacket.readString(len);
     }
 
-    private LocalTime readTime(ReadPacketData packetIO) {
-        int value = packetIO.readInt(3);
+    private LocalTime readTime(ReadPacketData readPacket) {
+        int value = readPacket.readInt(3);
         int seconds = value % 100;
         value = value / 100;
         int minutes = value % 100;
@@ -191,19 +191,19 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         return LocalTime.of(hours, minutes, seconds);
     }
 
-    private LocalTime readTime2(int metadata, ReadPacketData packetIO) {
-        int value = packetIO.readBigEndianInt(3);
-        int fsp = readFsp(metadata, packetIO);
+    private LocalTime readTime2(int metadata, ReadPacketData readPacket) {
+        int value = readPacket.readBigEndianInt(3);
+        int fsp = readFsp(metadata, readPacket);
         return new Time(value * 1000).toLocalTime().withNano(
                 fsp * 1000
         );
     }
 
-    private int readFsp(int metadata, ReadPacketData packetIO) {
+    private int readFsp(int metadata, ReadPacketData readPacket) {
         int fractLength = (metadata + 1) / 2;
         int fsp = 0;
         if (fractLength > 0) {
-            int fraction = packetIO.readBigEndianInt(fractLength);
+            int fraction = readPacket.readBigEndianInt(fractLength);
             if (fractLength == 3) fsp = fraction * 1;
             if (fractLength == 2) fsp = fraction * 100;
             if (fractLength == 1) fsp = fraction * 10000;
@@ -211,8 +211,8 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         return fsp;
     }
 
-    private LocalDate readDate(ReadPacketData packetIO) {
-        int value = packetIO.readInt(3);
+    private LocalDate readDate(ReadPacketData readPacket) {
+        int value = readPacket.readInt(3);
         int days = value & 0b11111; // 1 to 5 bit
         value >>= 5;
         int months = value & 0b1111; // 6 to 9 bit
@@ -221,8 +221,8 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         return LocalDate.of(years, months, days);
     }
 
-    private LocalDateTime readDatetime(ReadPacketData packetIO) {
-        long value = packetIO.readLong(8);
+    private LocalDateTime readDatetime(ReadPacketData readPacket) {
+        long value = readPacket.readLong(8);
         int seconds = (int) (value % 100);
         value = value / 100;
         int minutes = (int) (value % 100);
@@ -238,7 +238,7 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         return LocalDateTime.of(years, months, days, hours, minutes, seconds);
     }
 
-    private LocalDateTime readDatetime2(int metadata, ReadPacketData packetIO) {
+    private LocalDateTime readDatetime2(int metadata, ReadPacketData readPacket) {
         // 1 bit  sign           (1= non-negative, 0= negative)
         //17 bits year*13+month  (year 0-9999, month 0-12)
         // 5 bits day            (0-31)
@@ -247,7 +247,7 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         // 6 bits second         (0-59)
         //---------------------------
         //40 bits = 5 bytes
-        long value = packetIO.readBigEndianLong(5);
+        long value = readPacket.readBigEndianLong(5);
         int second = (int)(value & 0b111111);
         value >>= 6;
         int minute = (int)(value & 0b111111);
@@ -259,21 +259,21 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         int yearMonth = (int)(value & 0x1FFFF);
         int year = yearMonth / 13;
         int month = yearMonth % 13;
-        int fsp = readFsp(metadata, packetIO);
+        int fsp = readFsp(metadata, readPacket);
         return LocalDateTime.of(year, month, day, hour, minute, second, fsp * 1000);
     }
 
-    private Timestamp readTimestamp2(int metadata, ReadPacketData packetIO) {
-        return new Timestamp(packetIO.readLong(4) * 1000 + readFsp(metadata, packetIO) / 1000);
+    private Timestamp readTimestamp2(int metadata, ReadPacketData readPacket) {
+        return new Timestamp(readPacket.readLong(4) * 1000 + readFsp(metadata, readPacket) / 1000);
     }
 
-    private byte[] readGeometry(int metadata, ReadPacketData packetIO) {
-        int len = packetIO.readInt(metadata);
-        return packetIO.readBytes(len);
+    private byte[] readGeometry(int metadata, ReadPacketData readPacket) {
+        int len = readPacket.readInt(metadata);
+        return readPacket.readBytes(len);
     }
 
-    private byte[] readJson(int metadata, ReadPacketData packetIO) {
-        int len = packetIO.readInt(metadata);
-        return packetIO.readBytes(len);
+    private byte[] readJson(int metadata, ReadPacketData readPacket) {
+        int len = readPacket.readInt(metadata);
+        return readPacket.readBytes(len);
     }
 }
