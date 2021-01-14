@@ -18,6 +18,9 @@ public class BinLogReader {
     private boolean reading = false;
     private BinLogListener listener = BinLogListener.NULL;
 
+    private String binlogFile;
+    private long binlogPosition;
+
     public BinLogReader(String host, int port, String user, String password) {
         this.host = host;
         this.port = port;
@@ -25,8 +28,9 @@ public class BinLogReader {
         this.password = password;
     }
 
-    public void setBinlogFilenameAndPosition(String binlogFilename, long position) {
-
+    public void setStartBinlogPosition(String filename, long position) {
+        this.binlogFile = filename;
+        this.binlogPosition = position;
     }
 
     public void setBinLogListener(BinLogListener listener) {
@@ -38,13 +42,29 @@ public class BinLogReader {
     }
 
     public void connect() {
-        session = new BinLogSession(host, port, user, password);
-        session.handshake();
-        session.fetchBinlogFilenameAndPosition();
+        int trycnt = 1;
+        while(true) {
+            try {
+                session = new BinLogSession(host, port, user, password);
+                session.handshake();
+                if (binlogFile == null) {
+                    BinlogPosition pos = session.fetchBinlogFilePosition();
+                    this.binlogFile = pos.getFilename();
+                    this.binlogPosition = pos.getPosition();
+                }
+                break;
+            } catch (Exception ex) {
+                if (trycnt < 3) {
+                    trycnt++;
+                } else {
+                    throw ex;
+                }
+            }
+        }
     }
 
     public void start() {
-        session.registerSlave();
+        session.registerSlave(binlogFile, binlogPosition);
         read();
     }
 
@@ -58,27 +78,34 @@ public class BinLogReader {
                         listener.onErr(readEvent.getLeft());
                     } else {
                         BinLogEvent event = readEvent.getRight();
+
                         if (event.getHeader().getEventType() == BinlogEventType.ROTATE_EVENT) {
-                            listener.onRotateEvent(event.getHeader(), (RotateEvent) event.getData());
-                        } else if (event.getHeader().getEventType() == BinlogEventType.FORMAT_DESCRIPTION_EVENT) {
-                            listener.onFormatDescriptionEvent(event.getHeader(), (QueryEvent) event.getData());
-                        } else if (event.getHeader().getEventType() == BinlogEventType.QUERY_EVENT) {
-                            listener.onQueryEvent(event.getHeader(), (QueryEvent) event.getData());
-                        } else if (event.getHeader().getEventType() == BinlogEventType.TABLE_MAP_EVENT) {
-                            listener.onTableMapEvent(event.getHeader(), (TableMapEvent) event.getData());
-                        } else if (event.getHeader().getEventType() == BinlogEventType.WRITE_ROWS_EVENT_V1) {
-                            listener.onWriteRowsEvent(event.getHeader(), (WriteRowsEvent) event.getData());
-                        } else if (event.getHeader().getEventType() == BinlogEventType.UPDATE_ROWS_EVENT_V1) {
-                            listener.onUpdateRowsEvent(event.getHeader(), (UpdateRowsEvent) event.getData());
-                        } else if (event.getHeader().getEventType() == BinlogEventType.DELETE_ROWS_EVENT_V1) {
-                            listener.onDeleteRowsEvent(event.getHeader(), (DeleteRowsEvent) event.getData());
-                        } else if (event.getHeader().getEventType() == BinlogEventType.XID_EVENT) {
-                            listener.onXidEvent(event.getHeader(), (XidEvent) event.getData());
-                        } else if (event.getHeader().getEventType() == BinlogEventType.HEARTBEAT_LOG_EVENT) {
-                            listener.onHeartbeatEvent(event.getHeader(), (HeartbeatEvent) event.getData());
-                        } else if (event.getHeader().getEventType() == BinlogEventType.STOP_EVENT) {
-                            reading = false;
-                            listener.onStopEvent(event.getHeader(), (StopEvent) event.getData());
+                            RotateEvent rotateEvent = (RotateEvent) event.getData();
+                            this.binlogFile = rotateEvent.getFilename();
+                            this.binlogPosition = rotateEvent.getPosition();
+                            listener.onRotateEvent(event.getHeader(), rotateEvent);
+                        } else {
+                            this.binlogPosition = event.getHeader().getNextPosition();
+                            if (event.getHeader().getEventType() == BinlogEventType.FORMAT_DESCRIPTION_EVENT) {
+                                listener.onFormatDescriptionEvent(event.getHeader(), (QueryEvent) event.getData());
+                            } else if (event.getHeader().getEventType() == BinlogEventType.QUERY_EVENT) {
+                                listener.onQueryEvent(event.getHeader(), (QueryEvent) event.getData());
+                            } else if (event.getHeader().getEventType() == BinlogEventType.TABLE_MAP_EVENT) {
+                                listener.onTableMapEvent(event.getHeader(), (TableMapEvent) event.getData());
+                            } else if (event.getHeader().getEventType() == BinlogEventType.WRITE_ROWS_EVENT_V1) {
+                                listener.onWriteRowsEvent(event.getHeader(), (WriteRowsEvent) event.getData());
+                            } else if (event.getHeader().getEventType() == BinlogEventType.UPDATE_ROWS_EVENT_V1) {
+                                listener.onUpdateRowsEvent(event.getHeader(), (UpdateRowsEvent) event.getData());
+                            } else if (event.getHeader().getEventType() == BinlogEventType.DELETE_ROWS_EVENT_V1) {
+                                listener.onDeleteRowsEvent(event.getHeader(), (DeleteRowsEvent) event.getData());
+                            } else if (event.getHeader().getEventType() == BinlogEventType.XID_EVENT) {
+                                listener.onXidEvent(event.getHeader(), (XidEvent) event.getData());
+                            } else if (event.getHeader().getEventType() == BinlogEventType.HEARTBEAT_LOG_EVENT) {
+                                listener.onHeartbeatEvent(event.getHeader(), (HeartbeatEvent) event.getData());
+                            } else if (event.getHeader().getEventType() == BinlogEventType.STOP_EVENT) {
+                                reading = false;
+                                listener.onStopEvent(event.getHeader(), (StopEvent) event.getData());
+                            }
                         }
                     }
                 } catch (Exception ex) {
@@ -91,12 +118,14 @@ public class BinLogReader {
     }
 
     public BinlogPosition getPosition() {
-        return new BinlogPosition(session.getBinlogFile(), session.getBinlogPosition());
+        return new BinlogPosition(binlogFile, binlogPosition);
     }
 
     public void disconnect() {
         if (reading) reading = false;
-        session.close();
+        if (session != null) {
+            session.close();
+        }
+        session = null;
     }
-
 }

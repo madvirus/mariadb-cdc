@@ -1,5 +1,6 @@
 package mariadbcdc.connector;
 
+import mariadbcdc.BinlogPosition;
 import mariadbcdc.connector.handler.BinLogHandler;
 import mariadbcdc.connector.handler.HandshakeHandler;
 import mariadbcdc.connector.handler.HandshakeSuccessResult;
@@ -27,9 +28,6 @@ class BinLogSession {
     private final String password;
 
     private PacketIO packetIO;
-
-    private String binlogFile;
-    private long binlogPosition;
 
     private int serverCapabilities;
     private int clientCapabilities;
@@ -66,7 +64,7 @@ class BinLogSession {
         this.serverCapabilities = handshake.getServerCapabilities();
     }
 
-    public void fetchBinlogFilenameAndPosition() {
+    public BinlogPosition fetchBinlogFilePosition() {
         writePacketWriter.write(new ComQueryPacket("show master status"));
         Either<OkPacket, ResultSetPacket> readPacket = new ReadPacketReader(packetIO).readResultSetPacket(clientCapabilities);
         ResultSetPacket rsp = readPacket.getRight();
@@ -74,15 +72,16 @@ class BinLogSession {
             throw new BinLogException("Failed to read binlog filename/position");
         }
         ResultSetRow row0 = rsp.getRows().get(0);
-        this.binlogFile = row0.getString(0);
-        this.binlogPosition = row0.getLong(1);
+        String binlogFile = row0.getString(0);
+        long binlogPosition = row0.getLong(1);
         if (binlogPosition < 4) {
-            this.binlogPosition = 4;
+            binlogPosition = 4;
         }
-        logger.info("binlog filename/position: {}/{}", binlogFile, binlogPosition);
+        logger.info("fetch binlog filename/position: {}/{}", binlogFile, binlogPosition);
+        return new BinlogPosition(binlogFile, binlogPosition);
     }
 
-    public void registerSlave() {
+    public void registerSlave(String binlogFile, long binlogPosition) {
         RegisterSlaveHandler handler = new RegisterSlaveHandler(clientCapabilities, readPacketReader, writePacketWriter);
         this.masterServerId = handler.getServerId();
         logger.debug("serverId: {}", masterServerId);
@@ -96,14 +95,6 @@ class BinLogSession {
             binLogHandler = new BinLogHandler(readPacketReader, checksum);
         }
         return binLogHandler.readBinLogEvent();
-    }
-
-    public String getBinlogFile() {
-        return binlogFile;
-    }
-
-    public long getBinlogPosition() {
-        return binlogPosition;
     }
 
     public void close() {
@@ -126,4 +117,5 @@ class BinLogSession {
         }
         logger.debug("closed session");
     }
+
 }
