@@ -6,8 +6,12 @@ import mariadbcdc.connector.packet.ErrPacket;
 import mariadbcdc.connector.packet.binlog.BinLogEvent;
 import mariadbcdc.connector.packet.binlog.BinlogEventType;
 import mariadbcdc.connector.packet.binlog.data.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class BinLogReader {
+    private Logger logger = LoggerFactory.getLogger(getClass());
+
     private final String host;
     private final int port;
     private final String user;
@@ -65,7 +69,14 @@ public class BinLogReader {
 
     public void start() {
         session.registerSlave(binlogFile, binlogPosition);
-        read();
+        try {
+            read();
+        } catch (BinLogException e) {
+            if (reading) {
+                throw e;
+            }
+            logger.debug("ignore BinLogException because disconnected");
+        }
     }
 
     public void read() {
@@ -109,7 +120,7 @@ public class BinLogReader {
                         }
                     }
                 } catch (Exception ex) {
-                    // ignore listener error
+                    logger.warn("ignore exception: " + ex.getMessage());
                 }
             }
         } finally {

@@ -27,13 +27,10 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
             fieldTypes[i] = FieldType.byValue(Byte.toUnsignedInt(columnTypes[i]));
         }
         int lengthOfMetadata = readPacketData.readLengthEncodedInt();
-        byte[] metadataBlock = new byte[lengthOfMetadata];
-        readPacketData.readBytes(metadataBlock);
+        byte[] metadataBlock = readPacketData.readBytes(lengthOfMetadata);
         int[] metadata = toMetaData(metadataBlock, fieldTypes);
-        int bitfieldLen = readPacketData.remaining();
-        byte[] bitField = new byte[bitfieldLen];
-        readPacketData.readBytes(bitField);
-
+        int bitfieldLen = (numberOfColumns + 7) >> 3; // readPacketData.remaining();
+        byte[] nullabilityBitField = readPacketData.readBytes(bitfieldLen);
         return new TableMapEvent(
                 tableId,
                 databaseName,
@@ -41,7 +38,7 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
                 numberOfColumns,
                 fieldTypes,
                 metadata,
-                BitSet.valueOf(bitField)
+                BitSet.valueOf(nullabilityBitField)
         );
     }
 

@@ -4,8 +4,8 @@ import mariadbcdc.connector.io.ReadPacketData;
 import mariadbcdc.connector.packet.binlog.BinLogData;
 import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.BinLogStatus;
+import mariadbcdc.connector.packet.binlog.data.DeleteRowsEvent;
 import mariadbcdc.connector.packet.binlog.data.TableMapEvent;
-import mariadbcdc.connector.packet.binlog.data.WriteRowsEvent;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -29,7 +29,7 @@ public class DeleteRowsEventBinLogDataDeserializer extends BaseRowsEventBinLogDa
             Object[] columnValues = readColumnValues(columnUsed, nullBitmap, tableMap.get(tableId), readPacketData);
             rows.add(columnValues);
         }
-        return new WriteRowsEvent(
+        return new DeleteRowsEvent(
                 tableId,
                 numberOfColumns,
                 columnUsed,

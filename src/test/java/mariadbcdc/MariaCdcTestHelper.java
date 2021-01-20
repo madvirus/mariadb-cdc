@@ -272,7 +272,7 @@ public class MariaCdcTestHelper {
         return new MemberInserter().withId(id);
     }
     
-    class MemberInserter {
+    public class MemberInserter {
         private long id;
         private String name;
         private String email;
