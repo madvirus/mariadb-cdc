@@ -33,7 +33,6 @@ class BinLogSession {
     private int clientCapabilities;
     private int connectionId;
     private Long masterServerId;
-    private long slaveServerId = 65534;
 
     private String checksum;
 
@@ -81,7 +80,7 @@ class BinLogSession {
         return new BinlogPosition(binlogFile, binlogPosition);
     }
 
-    public void registerSlave(String binlogFile, long binlogPosition) {
+    public void registerSlave(String binlogFile, long binlogPosition, long slaveServerId) {
         RegisterSlaveHandler handler = new RegisterSlaveHandler(clientCapabilities, readPacketReader, writePacketWriter);
         this.masterServerId = handler.getServerId();
         logger.debug("serverId: {}", masterServerId);

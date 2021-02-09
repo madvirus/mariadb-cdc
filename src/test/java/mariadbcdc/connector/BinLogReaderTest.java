@@ -7,9 +7,13 @@ import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.data.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.MariaDBContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,15 +23,26 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("integration")
+@Testcontainers
 public class BinLogReaderTest {
+    @Container
+    public MariaDBContainer mariaDB = (MariaDBContainer) new MariaDBContainer("mariadb:10.3")
+            .withConfigurationOverride("conf.d.103")
+            .withInitScript("init.sql");
+
     private Logger logger = LoggerFactory.getLogger(getClass());
-    MariaCdcTestHelper helper = new MariaCdcTestHelper("localhost", 3306, "root", "root", "root");
+
+    MariaCdcTestHelper helper;
     private BinLogReader reader;
     private TestBinLogListener binLogListener;
 
     @BeforeEach
     void setUp() {
-        reader = new BinLogReader("localhost", 3306, "root", "root");
+        helper = new MariaCdcTestHelper(mariaDB);
+        helper.createCdcUser("cdc", "cdc");
+
+        reader = new BinLogReader(mariaDB.getHost(), mariaDB.getMappedPort(3306), "cdc", "cdc");
         binLogListener = new TestBinLogListener();
         reader.setBinLogListener(binLogListener);
     }

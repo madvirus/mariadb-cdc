@@ -24,6 +24,7 @@ public class BinLogReader {
 
     private String binlogFile;
     private long binlogPosition;
+    private long slaveServerId = 65535;
 
     public BinLogReader(String host, int port, String user, String password) {
         this.host = host;
@@ -35,6 +36,10 @@ public class BinLogReader {
     public void setStartBinlogPosition(String filename, long position) {
         this.binlogFile = filename;
         this.binlogPosition = position;
+    }
+
+    public void setSlaveServerId(long slaveServerId) {
+        this.slaveServerId = slaveServerId;
     }
 
     public void setBinLogListener(BinLogListener listener) {
@@ -68,7 +73,7 @@ public class BinLogReader {
     }
 
     public void start() {
-        session.registerSlave(binlogFile, binlogPosition);
+        session.registerSlave(binlogFile, binlogPosition, slaveServerId);
         try {
             read();
         } catch (BinLogException e) {

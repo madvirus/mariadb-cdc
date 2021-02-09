@@ -1,28 +1,43 @@
 package mariadbcdc.connector;
 
 import mariadbcdc.BinlogPosition;
+import mariadbcdc.JdbcColumnNamesGetter;
 import mariadbcdc.MariaCdcTestHelper;
 import mariadbcdc.Sleeps;
 import mariadbcdc.connector.packet.binlog.BinLogHeader;
 import mariadbcdc.connector.packet.binlog.data.RotateEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.MariaDBContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("integration")
+@Testcontainers
 public class BinLogReaderPositionTest {
+    @Container
+    public MariaDBContainer mariaDB = (MariaDBContainer) new MariaDBContainer("mariadb:10.3")
+            .withConfigurationOverride("conf.d.103")
+            .withInitScript("init.sql");
+
     private Logger logger = LoggerFactory.getLogger(getClass());
-    MariaCdcTestHelper helper = new MariaCdcTestHelper("localhost", 3306, "root", "root", "root");
+    MariaCdcTestHelper helper;
     private BinLogReader reader;
 
     @BeforeEach
     void setUp() {
-        reader = new BinLogReader("localhost", 3306, "root", "root");
+        helper = new MariaCdcTestHelper(mariaDB);
+        helper.createCdcUser("cdc", "cdc");
+
+        reader = new BinLogReader(mariaDB.getHost(), mariaDB.getMappedPort(3306), "cdc", "cdc");
     }
 
     @AfterEach
@@ -34,6 +49,9 @@ public class BinLogReaderPositionTest {
 
     @Test
     void getPosition() {
+        helper.insertMember("이름1", "이메일1");
+        helper.insertMember("이름2", "이메일2");
+        helper.insertMember("이름3", "이메일3");
         BinlogPosition realPos = helper.getCurrentPosition();
 
         reader.connect();
@@ -44,6 +62,7 @@ public class BinLogReaderPositionTest {
 
     @Test
     void startWithPosition() {
+        helper.insertMember("이름4", "이메일4");
         BinlogPosition realPos = helper.getCurrentPosition();
 
         reader.setStartBinlogPosition(realPos.getFilename(), 4L);
