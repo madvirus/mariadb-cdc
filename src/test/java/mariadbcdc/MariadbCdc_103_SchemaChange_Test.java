@@ -16,7 +16,7 @@ import java.util.List;
 @Testcontainers
 public class MariadbCdc_103_SchemaChange_Test {
     @Container
-    public MariaDBContainer mariaDB = (MariaDBContainer) new MariaDBContainer()
+    public MariaDBContainer mariaDB = (MariaDBContainer) new MariaDBContainer("mariadb:10.3")
             .withConfigurationOverride("conf.d.103")
             .withInitScript("init.sql");
 
