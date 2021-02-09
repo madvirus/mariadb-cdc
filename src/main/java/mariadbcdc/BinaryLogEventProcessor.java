@@ -57,6 +57,14 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
             binlogPositionSaver.save(new BinlogPosition(r.getBinlogFilename(), r.getBinlogPosition()));
             return;
         }
+        BinlogPosition currentEventBinLogPosition = null;
+        if (header instanceof EventHeaderV4) {
+            if (isBinPositionSaveTarget(data)) {
+                EventHeaderV4 hv4 = (EventHeaderV4) header;
+                currentEventBinLogPosition = new BinlogPosition(currentBinlogFilename, hv4.getNextPosition());
+            }
+        }
+
         try {
             if (data instanceof QueryEventData) {
                 handleQueryEventData((QueryEventData) data);
@@ -82,11 +90,11 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                             colNames = Collections.emptyList();
                         }
                         if (data instanceof WriteRowsEventData) {
-                            handleWriteRowsEventData(header, (WriteRowsEventData) data, colNames);
+                            handleWriteRowsEventData(currentEventBinLogPosition, header, (WriteRowsEventData) data, colNames);
                         } else if (data instanceof UpdateRowsEventData) {
-                            handleUpdateRowsEventData(header, (UpdateRowsEventData) data, colNames);
+                            handleUpdateRowsEventData(currentEventBinLogPosition, header, (UpdateRowsEventData) data, colNames);
                         } else if (data instanceof DeleteRowsEventData) {
-                            handleDeleteRowsEventData(header, (DeleteRowsEventData) data, colNames);
+                            handleDeleteRowsEventData(currentEventBinLogPosition, header, (DeleteRowsEventData) data, colNames);
                         }
                     }
                 }
@@ -103,11 +111,8 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
             // ignore listener thrown exception
             logger.warn("listener thrown exception: " + ex.getMessage(), ex);
         } finally {
-            if (header instanceof EventHeaderV4) {
-                if (isBinPositionSaveTarget(data)) {
-                    EventHeaderV4 hv4 = (EventHeaderV4) header;
-                    binlogPositionSaver.save(new BinlogPosition(currentBinlogFilename, hv4.getNextPosition()));
-                }
+            if (currentEventBinLogPosition != null) {
+                binlogPositionSaver.save(currentEventBinLogPosition);
             }
         }
     }
@@ -119,10 +124,12 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
     }
 
     private void handleQueryEventData(QueryEventData data) {
-        AlterQueryDecision decision = QueryDecider.decideAlterQuery(data.getSql());
+        SchemaChangeQueryDecision decision = QueryDecider.decideSchemaChangeQuery(data.getSql());
         if (decision.isAlterQuery()) {
-            String db = decision.hasDatabase() ? decision.getDatabase() : data.getDatabase();
-            schemaChangeListener.onSchemaChanged(new SchemaChangedData(db, decision.getTable()));
+            decision.getDatabaseTableNames()
+                    .forEach(schemaChangedTable -> {
+                        schemaChangeListener.onSchemaChanged(schemaChangedTable);
+                    });
         }
     }
 
@@ -143,7 +150,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         return database != null && database.length() > 0 && table != null && table.length() > 0;
     }
 
-    private void handleWriteRowsEventData(EventHeader header, WriteRowsEventData rowData, List<String> colNames) {
+    private void handleWriteRowsEventData(BinlogPosition currentEventBinLogPosition, EventHeader header, WriteRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
         List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
 
@@ -153,13 +160,14 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                         database,
                         table,
                         header.getTimestamp(),
-                        convertDataRow(incColNames, incColTypes, row)
+                        convertDataRow(incColNames, incColTypes, row),
+                        currentEventBinLogPosition
                 ))
                 .collect(Collectors.toList());
         listener.onDataChanged(rowChangedDataList);
     }
 
-    private void handleUpdateRowsEventData(EventHeader header, UpdateRowsEventData rowData, List<String> colNames) {
+    private void handleUpdateRowsEventData(BinlogPosition currentEventBinLogPosition, EventHeader header, UpdateRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
         List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
         List<String> incColNamesBeforeUpdate = includedColumnNames(colNames, rowData.getIncludedColumnsBeforeUpdate());
@@ -172,13 +180,14 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                         table,
                         header.getTimestamp(),
                         convertDataRow(incColNames, incColTypes, row.getValue()),
-                        convertDataRow(incColNamesBeforeUpdate, incColTypesBeforeUpdate, row.getKey())
+                        convertDataRow(incColNamesBeforeUpdate, incColTypesBeforeUpdate, row.getKey()),
+                        currentEventBinLogPosition
                 ))
                 .collect(Collectors.toList());
         listener.onDataChanged(rowChangedDataList);
     }
 
-    private void handleDeleteRowsEventData(EventHeader header, DeleteRowsEventData rowData, List<String> colNames) {
+    private void handleDeleteRowsEventData(BinlogPosition currentEventBinLogPosition, EventHeader header, DeleteRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
         List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
 
@@ -188,7 +197,8 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                         database,
                         table,
                         header.getTimestamp(),
-                        convertDataRow(incColNames, incColTypes, row)
+                        convertDataRow(incColNames, incColTypes, row),
+                        currentEventBinLogPosition
                 ))
                 .collect(Collectors.toList());
         listener.onDataChanged(rowChangedDataList);
@@ -212,7 +222,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
     private DataRow convertDataRow(List<String> colNames, List<ColumnType> incColTypes, Serializable[] row) {
         DataRowImpl dataRow = new DataRowImpl();
         for (int i = 0; i < row.length; i++) {
-            dataRow.add(colNames.isEmpty() ? "col" + (i+1) : colNames.get(i),
+            dataRow.add(colNames.isEmpty() ? "col" + i : colNames.get(i),
                     incColTypes.isEmpty() ? null : incColTypes.get(i),
                     row[i]);
         }

@@ -16,7 +16,7 @@ import java.util.List;
 @Testcontainers
 public class MariadbCdc_103_SchemaChange_Test {
     @Container
-    public MariaDBContainer mariaDB = (MariaDBContainer) new MariaDBContainer()
+    public MariaDBContainer mariaDB = (MariaDBContainer) new MariaDBContainer("mariadb:10.3")
             .withConfigurationOverride("conf.d.103")
             .withInitScript("init.sql");
 
@@ -60,7 +60,7 @@ public class MariadbCdc_103_SchemaChange_Test {
                 if (result.get(0).getDataRow().hasTableColumnNames()) {
                     soft.assertThat(result.get(0).getDataRow().getLong("id")).isEqualTo(1L);
                 } else {
-                    soft.assertThat(result.get(0).getDataRow().getLong("col1")).isEqualTo(1L);
+                    soft.assertThat(result.get(0).getDataRow().getLong("col0")).isEqualTo(1L);
                 }
 
                 soft.assertThat(result.get(1).getType()).isEqualTo(ChangeType.INSERT);

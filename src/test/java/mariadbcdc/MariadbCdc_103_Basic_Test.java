@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers
 public class MariadbCdc_103_Basic_Test {
     @Container
-    public MariaDBContainer mariaDB = (MariaDBContainer) new MariaDBContainer()
+    public MariaDBContainer mariaDB = (MariaDBContainer) new MariaDBContainer("mariadb:10.3")
             .withConfigurationOverride("conf.d.103")
             .withInitScript("init.sql");
 
@@ -147,6 +147,7 @@ public class MariadbCdc_103_Basic_Test {
             soft.assertThat(result.get(0).getDataRow().getLong("id")).isNotNull();
             soft.assertThat(result.get(0).getDataRow().getString("name")).isEqualTo("name3");
             soft.assertThat(result.get(0).getDataRow().getString("email")).isEqualTo("email3");
+            soft.assertThat(result.get(0).getBinLogPosition()).isNotNull();
 
             soft.assertThat(result.get(1).getType()).isEqualTo(ChangeType.INSERT);
             soft.assertThat(result.get(1).getDatabase()).isEqualTo("test");
@@ -154,6 +155,7 @@ public class MariadbCdc_103_Basic_Test {
             soft.assertThat(result.get(1).getDataRow().getLong("id")).isNotNull();
             soft.assertThat(result.get(1).getDataRow().getString("name")).isEqualTo("name4");
             soft.assertThat(result.get(1).getDataRow().getString("email")).isEqualTo("email4");
+            soft.assertThat(result.get(1).getBinLogPosition()).isNotNull();
         });
     }
 
@@ -181,11 +183,13 @@ public class MariadbCdc_103_Basic_Test {
             soft.assertThat(result.get(0).getTable()).isEqualTo("member");
             soft.assertThat(result.get(0).getDataRow().getLong("id")).isEqualTo(3L);
             soft.assertThat(result.get(0).getDataRow().getString("name")).isEqualTo("nameupd3");
+            soft.assertThat(result.get(0).getBinLogPosition()).isNotNull();
             soft.assertThat(result.get(1).getType()).isEqualTo(ChangeType.UPDATE);
             soft.assertThat(result.get(1).getDatabase()).isEqualTo("test");
             soft.assertThat(result.get(1).getTable()).isEqualTo("member");
             soft.assertThat(result.get(1).getDataRow().getLong("id")).isEqualTo(4L);
             soft.assertThat(result.get(1).getDataRow().getString("name")).isEqualTo("nameupd4");
+            soft.assertThat(result.get(1).getBinLogPosition()).isNotNull();
         });
     }
 
@@ -217,16 +221,19 @@ public class MariadbCdc_103_Basic_Test {
                 soft.assertThat(result.get(0).getDatabase()).isEqualTo("test");
                 soft.assertThat(result.get(0).getTable()).isEqualTo("member");
                 soft.assertThat(result.get(0).getDataRow().getLong("id")).isEqualTo(3L);
+                soft.assertThat(result.get(0).getBinLogPosition()).isNotNull();
 
                 soft.assertThat(result.get(1).getType()).isEqualTo(ChangeType.DELETE);
                 soft.assertThat(result.get(1).getDatabase()).isEqualTo("test");
                 soft.assertThat(result.get(1).getTable()).isEqualTo("member");
                 soft.assertThat(result.get(1).getDataRow().getLong("id")).isEqualTo(4L);
+                soft.assertThat(result.get(1).getBinLogPosition()).isNotNull();
 
                 soft.assertThat(result.get(2).getType()).isEqualTo(ChangeType.DELETE);
                 soft.assertThat(result.get(2).getDatabase()).isEqualTo("test");
                 soft.assertThat(result.get(2).getTable()).isEqualTo("member");
                 soft.assertThat(result.get(2).getDataRow().getLong("id")).isEqualTo(5L);
+                soft.assertThat(result.get(2).getBinLogPosition()).isNotNull();
             }
         });
     }

@@ -39,7 +39,9 @@ public class DefaultBinaryLogWrapper implements BinaryLogWrapper {
         BinaryLogClient client = new BinaryLogClient(
                 config.getHost(), config.getPort(),
                 config.getUser(), config.getPassword());
-
+        if (config.getServerId() != null) {
+            client.setServerId(config.getServerId());
+        }
         if (lastBinPos != null) {
             client.setBinlogFilename(lastBinPos.getFilename());
             client.setBinlogPosition(lastBinPos.getPosition());

@@ -7,6 +7,8 @@ public class MariadbCdcConfig {
     private String password;
     private String positionTraceFile;
 
+    private Long serverId;
+
     private String[] excludeFilters;
     private String[] includeFilters;
 
@@ -36,6 +38,14 @@ public class MariadbCdcConfig {
 
     public String getPositionTraceFile() {
         return positionTraceFile;
+    }
+
+    public Long getServerId() {
+        return serverId;
+    }
+
+    public void setServerId(Long serverId) {
+        this.serverId = serverId;
     }
 
     public void setExcludeFilters(String ... filters) {

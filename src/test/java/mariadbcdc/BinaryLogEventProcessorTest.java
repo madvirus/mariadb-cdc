@@ -182,9 +182,9 @@ class BinaryLogEventProcessorTest {
                 soft.assertThat(list.get(0).getType()).isEqualTo(ChangeType.INSERT);
                 soft.assertThat(list.get(0).getDatabase()).isEqualTo("test");
                 soft.assertThat(list.get(0).getTable()).isEqualTo("member");
-                soft.assertThat(list.get(0).getDataRow().getLong("col1")).isEqualTo(1L);
-                soft.assertThat(list.get(0).getDataRow().getString("col2")).isEqualTo("이름1");
-                soft.assertThat(list.get(0).getDataRow().getString("col3")).isEqualTo("이메일1");
+                soft.assertThat(list.get(0).getDataRow().getLong("col0")).isEqualTo(1L);
+                soft.assertThat(list.get(0).getDataRow().getString("col1")).isEqualTo("이름1");
+                soft.assertThat(list.get(0).getDataRow().getString("col2")).isEqualTo("이메일1");
             }
         });
     }
@@ -243,7 +243,7 @@ class BinaryLogEventProcessorTest {
                 .nextPosition(2L)
                 .build());
 
-        List<SchemaChangedData> list = schemaChangeListener.getSchemaChangedDataList();
+        List<SchemaChangedTable> list = schemaChangeListener.getSchemaChangedDataList();
         SoftAssertions.assertSoftly(soft -> {
             soft.assertThat(list).hasSize(1);
             soft.assertThat(list.get(0).getDatabase()).isEqualTo("mysys");
@@ -282,15 +282,15 @@ class BinaryLogEventProcessorTest {
     }
 
     private class StubSchemaChangeListener implements SchemaChangeListener {
-        private List<SchemaChangedData> schemaChangedDataList = new ArrayList<>();
+        private List<SchemaChangedTable> schemaChangedTableList = new ArrayList<>();
 
         @Override
-        public void onSchemaChanged(SchemaChangedData schemaChangedData) {
-            schemaChangedDataList.add(schemaChangedData);
+        public void onSchemaChanged(SchemaChangedTable schemaChangedTable) {
+            schemaChangedTableList.add(schemaChangedTable);
         }
 
-        public List<SchemaChangedData> getSchemaChangedDataList() {
-            return schemaChangedDataList;
+        public List<SchemaChangedTable> getSchemaChangedDataList() {
+            return schemaChangedTableList;
         }
     }
 }

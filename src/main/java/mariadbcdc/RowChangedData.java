@@ -6,23 +6,28 @@ public class RowChangedData {
     private String table;
     private long timestamp;
     private DataRow dataRow;
+    private BinlogPosition binLogPosition;
     private DataRow dataRowBeforeUpdate;
 
-    public RowChangedData(ChangeType type, String database, String table, long timestamp, DataRow dataRow) {
+    public RowChangedData(ChangeType type, String database, String table, long timestamp, DataRow dataRow,
+                          BinlogPosition binLogPosition) {
         this.type = type;
         this.database = database;
         this.table = table;
         this.timestamp = timestamp;
         this.dataRow = dataRow;
+        this.binLogPosition = binLogPosition;
     }
 
-    public RowChangedData(ChangeType type, String database, String table, long timestamp, DataRow dataRow, DataRow dataRowBeforeUpdate) {
+    public RowChangedData(ChangeType type, String database, String table, long timestamp, DataRow dataRow, DataRow dataRowBeforeUpdate,
+                          BinlogPosition binLogPosition) {
         this.type = type;
         this.database = database;
         this.table = table;
         this.timestamp = timestamp;
         this.dataRow = dataRow;
         this.dataRowBeforeUpdate = dataRowBeforeUpdate;
+        this.binLogPosition = binLogPosition;
     }
 
     public ChangeType getType() {
@@ -49,4 +54,7 @@ public class RowChangedData {
         return dataRowBeforeUpdate;
     }
 
+    public BinlogPosition getBinLogPosition() {
+        return binLogPosition;
+    }
 }

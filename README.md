@@ -36,7 +36,7 @@ GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO cdc@'%'
 <dependency>
     <groupId>com.github.madvirus</groupId>
     <artifactId>mariadb-cdc</artifactId>
-    <version>0.11.0</version>
+    <version>0.13.2</version>
 </dependency>
 ```
 
