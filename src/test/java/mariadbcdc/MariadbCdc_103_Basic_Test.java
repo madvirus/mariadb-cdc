@@ -11,6 +11,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -124,6 +125,7 @@ public class MariadbCdc_103_Basic_Test {
         helper.deleteSavedPositionFile("temp/pos.saved");
 
         MariadbCdcConfig config = helper.createMariadbCdcConfig("temp/pos.saved");
+        config.setLocalDateTimeAdjustingHour(-9);
         MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);
 
         List<RowChangedData> result = new ArrayList<>();
@@ -134,7 +136,7 @@ public class MariadbCdc_103_Basic_Test {
             }
         });
         cdc.start();
-        helper.insertMember("name3", "email3");
+        helper.insertMember("name3", "email3", LocalDateTime.of(2021, 3, 10, 1, 2, 3));
         Sleeps.sleep(1);
         helper.insertMember("name4", "email4");
         Sleeps.sleep(1);
@@ -147,6 +149,8 @@ public class MariadbCdc_103_Basic_Test {
             soft.assertThat(result.get(0).getDataRow().getLong("id")).isNotNull();
             soft.assertThat(result.get(0).getDataRow().getString("name")).isEqualTo("name3");
             soft.assertThat(result.get(0).getDataRow().getString("email")).isEqualTo("email3");
+            soft.assertThat(result.get(0).getDataRow().getLocalDateTime("reg"))
+                    .isEqualTo(LocalDateTime.of(2021, 3, 10, 1, 2, 3));
             soft.assertThat(result.get(0).getBinLogPosition()).isNotNull();
 
             soft.assertThat(result.get(1).getType()).isEqualTo(ChangeType.INSERT);
