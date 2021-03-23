@@ -22,7 +22,15 @@ class QueryDeciderTest {
                 new SchemaChangedTable("mysys", "member"));
         assertSchemaChanged("\n   alter  table\nmysys.member\nadd column aaa char(10)",
                 new SchemaChangedTable("mysys", "member"));
-
+        assertSchemaChanged("ALTER TABLE `mysys`.`member` \n" +
+                "CHANGE COLUMN `recmsg` `recmsg` VARCHAR(100) NULL DEFAULT NULL COMMENT '결제결과메세지' AFTER `invoice_no`",
+                new SchemaChangedTable("mysys", "member"));
+        assertSchemaChanged("ALTER TABLE mysys.`member` \n" +
+                "CHANGE COLUMN `recmsg` `recmsg` VARCHAR(100) NULL DEFAULT NULL COMMENT '결제결과메세지' AFTER `invoice_no`",
+                new SchemaChangedTable("mysys", "member"));
+        assertSchemaChanged("ALTER TABLE `mysys`.member \n" +
+                "CHANGE COLUMN `recmsg` `recmsg` VARCHAR(100) NULL DEFAULT NULL COMMENT '결제결과메세지' AFTER `invoice_no`",
+                new SchemaChangedTable("mysys", "member"));
         assertNotAlterQuery("# dum");
     }
 
@@ -46,6 +54,9 @@ class QueryDeciderTest {
                 new SchemaChangedTable("test", "old1"),
                 new SchemaChangedTable("test2", "old2")
                 );
+
+        assertSchemaChanged("rename table `test`.`old` to `test`.`new`",
+                new SchemaChangedTable("test", "old"));
     }
 
     @Test
@@ -56,6 +67,9 @@ class QueryDeciderTest {
                 new SchemaChangedTable("test", "member"),
                 new SchemaChangedTable(null, "user")
         );
+
+        assertSchemaChanged("drop table `test`.`member`",
+                new SchemaChangedTable("test", "member"));
     }
 
     private void assertSchemaChanged(String alterQuery, SchemaChangedTable ... expected) {

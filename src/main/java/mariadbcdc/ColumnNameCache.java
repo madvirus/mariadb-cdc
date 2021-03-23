@@ -1,11 +1,16 @@
 package mariadbcdc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ColumnNameCache {
+    private Logger logger = LoggerFactory.getLogger(getClass());
+
     private Map<String, List<String>> colNames = new HashMap<>();
 
     private ColumnNamesGetter columnNamesGetter;
@@ -25,11 +30,16 @@ public class ColumnNameCache {
 
     public void invalidate(String database, String table) {
         if (database != null && !database.isEmpty()) {
-            colNames.remove(colNamesKey(database, table));
+            String key = colNamesKey(database, table);
+            colNames.remove(key);
+            logger.info("invalidate column name cache: {}", key);
         } else {
             colNames.keySet().stream().filter(key -> key.endsWith("." + table))
                     .collect(Collectors.toList())
-                    .forEach(key -> colNames.remove(key));
+                    .forEach(key -> {
+                        colNames.remove(key);
+                        logger.info("invalidate column name cache: {}", key);
+                    });
         }
     }
 

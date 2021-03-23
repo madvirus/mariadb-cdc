@@ -23,7 +23,9 @@ public class QueryDecider {
         Matcher alterMatcher = alterPattern.matcher(sql);
         if (alterMatcher.find()) {
             return new SchemaChangeQueryDecision(true,
-                    Collections.singletonList(new SchemaChangedTable(alterMatcher.group(2), alterMatcher.group(3)))
+                    Collections.singletonList(new SchemaChangedTable(
+                            removeBacktick(alterMatcher.group(2)),
+                            removeBacktick(alterMatcher.group(3))))
             );
         }
         Matcher renameMatcher = renamePattern.matcher(sql);
@@ -35,6 +37,11 @@ public class QueryDecider {
             return handleDrop(sql, dropMatcher);
         }
         return new SchemaChangeQueryDecision(false, Collections.emptyList());
+    }
+
+    private static String removeBacktick(String identifier) {
+        return identifier == null ? null :
+                identifier.replace("`", "");
     }
 
     private static Pattern renameSubPattern =
@@ -49,8 +56,8 @@ public class QueryDecider {
         Matcher n2nMatcher = renameSubPattern.matcher(queryPart);
         if (n2nMatcher.find()) {
             do {
-                String database = n2nMatcher.group(2);
-                String table = n2nMatcher.group(3);
+                String database = removeBacktick(n2nMatcher.group(2));
+                String table = removeBacktick(n2nMatcher.group(3));
                 tables.add(new SchemaChangedTable(database, table));
             } while (n2nMatcher.find());
         }
