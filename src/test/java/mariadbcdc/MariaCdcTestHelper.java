@@ -145,11 +145,16 @@ public class MariaCdcTestHelper {
     }
 
     public void insertMember(String name, String email) {
+        insertMember(name, email, LocalDateTime.now());
+    }
+
+    public void insertMember(String name, String email, LocalDateTime date) {
         try (Connection conn = getConnection();
-             PreparedStatement pstmt = conn.prepareStatement("insert into test.member (name, email) values (?, ?)")
+             PreparedStatement pstmt = conn.prepareStatement("insert into test.member (name, email, reg) values (?, ?, ?)")
         ) {
             pstmt.setString(1, name);
             pstmt.setString(2, email);
+            pstmt.setTimestamp(3, Timestamp.valueOf(date));
             pstmt.executeUpdate();
         } catch (SQLException ex) {
             throw new RuntimeException(ex);

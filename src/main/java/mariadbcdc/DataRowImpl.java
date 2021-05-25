@@ -18,6 +18,15 @@ public class DataRowImpl implements DataRow {
     private List<Serializable> values = new ArrayList<>();
     private Map<String, Serializable> valueMap = new HashMap<>();
     private boolean hasTableColumnNames;
+    private long localDateTimeAdjustingHour;
+
+    public DataRowImpl() {
+        this(0L);
+    }
+
+    public DataRowImpl(long localDateTimeAdjustingHour) {
+        this.localDateTimeAdjustingHour = localDateTimeAdjustingHour;
+    }
 
     @Override
     public String getString(String field) {
@@ -179,6 +188,9 @@ public class DataRowImpl implements DataRow {
                 case TIMESTAMP_V2:
                     if (value instanceof Long) {
                         LocalDateTime localDateTime = new Timestamp(((Number) value).longValue()).toLocalDateTime();
+                        if (localDateTimeAdjustingHour != 0) {
+                            localDateTime = localDateTime.plusHours(localDateTimeAdjustingHour);
+                        }
                         addValue(colName, localDateTime);
                     } else if (value instanceof Timestamp) {
                         addValue(colName, ((Timestamp) value).toLocalDateTime());
