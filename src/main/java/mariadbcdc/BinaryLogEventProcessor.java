@@ -108,10 +108,6 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                         }
                     }
                 }
-                database = null;
-                table = null;
-                columnTypes = null;
-                columnNamesOfMetadata = null;
             }
 
             if (data instanceof XidEventData) {
