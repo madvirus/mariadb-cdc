@@ -108,6 +108,53 @@ class BinaryLogEventProcessorTest {
     }
 
     @Test
+    void oneTableMap_Then_Multiple_UpdateRows() {
+        given(columnNamesGetter.getColumnNames("test", "member")).willReturn(Arrays.asList("ID", "NAME", "EMAIL"));
+
+        processor.onEvent(memberTableMapEvent(1L));
+
+        processor.onEvent(UpdateRowsEventBuilder.withIncludedColumns(new int[] {0, 1, 2})
+                .beforeAfterRows(Arrays.asList(
+                        new BeforeAfterRow(new Serializable[] {1L, "이름", "이메일"}, new Serializable[] {1L, "이름1", "이메일1"})
+                ))
+                .nextPosition(2L)
+                .build());
+
+        processor.onEvent(UpdateRowsEventBuilder.withIncludedColumns(new int[] {0, 1, 2})
+                .beforeAfterRows(Arrays.asList(
+                        new BeforeAfterRow(new Serializable[] {2L, "name", "email"}, new Serializable[] {2L, "name2", "email2"})
+                ))
+                .nextPosition(2L)
+                .build());
+
+        List<RowChangedData> list = listener.getChangedDataList();
+        SoftAssertions.assertSoftly(soft -> {
+            soft.assertThat(list).hasSize(2);
+            if (list.size() == 2) {
+                soft.assertThat(list.get(0).getType()).isEqualTo(ChangeType.UPDATE);
+                soft.assertThat(list.get(0).getDatabase()).isEqualTo("test");
+                soft.assertThat(list.get(0).getTable()).isEqualTo("member");
+                soft.assertThat(list.get(0).getDataRow().getLong("id")).isEqualTo(1L);
+                soft.assertThat(list.get(0).getDataRow().getString("name")).isEqualTo("이름1");
+                soft.assertThat(list.get(0).getDataRow().getString("email")).isEqualTo("이메일1");
+                soft.assertThat(list.get(0).getDataRowBeforeUpdate().getLong("id")).isEqualTo(1L);
+                soft.assertThat(list.get(0).getDataRowBeforeUpdate().getString("name")).isEqualTo("이름");
+                soft.assertThat(list.get(0).getDataRowBeforeUpdate().getString("email")).isEqualTo("이메일");
+
+                soft.assertThat(list.get(1).getType()).isEqualTo(ChangeType.UPDATE);
+                soft.assertThat(list.get(1).getDatabase()).isEqualTo("test");
+                soft.assertThat(list.get(1).getTable()).isEqualTo("member");
+                soft.assertThat(list.get(1).getDataRow().getLong("id")).isEqualTo(2L);
+                soft.assertThat(list.get(1).getDataRow().getString("name")).isEqualTo("name2");
+                soft.assertThat(list.get(1).getDataRow().getString("email")).isEqualTo("email2");
+                soft.assertThat(list.get(1).getDataRowBeforeUpdate().getLong("id")).isEqualTo(2L);
+                soft.assertThat(list.get(1).getDataRowBeforeUpdate().getString("name")).isEqualTo("name");
+                soft.assertThat(list.get(1).getDataRowBeforeUpdate().getString("email")).isEqualTo("email");
+            }
+        });
+    }
+
+    @Test
     void deleteRows() {
         given(columnNamesGetter.getColumnNames("test", "member")).willReturn(Arrays.asList("ID", "NAME", "EMAIL"));
 
@@ -143,6 +190,13 @@ class BinaryLogEventProcessorTest {
                 .build();
     }
 
+    private Event userTableMapEvent(long nextPosition) {
+        return TableMapEventBuilder.withDatabase("test", "user")
+                .columnTypes(new ColumnType[]{ColumnType.LONG, ColumnType.VARCHAR, ColumnType.VARCHAR})
+                .nextPosition(nextPosition)
+                .build();
+    }
+
     @Test
     void noPrececedTableMapEvent_Then_Skip_RowEvent() {
         Event writeRowsEvent = WriteRowsEventBuilder.withIncludedColumns(new int[] {0, 1, 2})
@@ -156,6 +210,48 @@ class BinaryLogEventProcessorTest {
         processor.onEvent(writeRowsEvent);
 
         assertThat(listener.getChangedDataList()).isEmpty();
+    }
+
+    @Test
+    void two_TableMapAndCreate() {
+        given(columnNamesGetter.getColumnNames("test", "member")).willReturn(Arrays.asList("ID", "NAME", "EMAIL"));
+
+        given(columnNamesGetter.getColumnNames("test", "user")).willReturn(Arrays.asList("col1", "col2", "col3"));
+
+        processor.onEvent(memberTableMapEvent(1L));
+        processor.onEvent(WriteRowsEventBuilder.withIncludedColumns(new int[] {0, 1, 2})
+                .rows(Arrays.<Serializable[]>asList(
+                        new Serializable[] {1L, "이름1", "이메일1"}
+                ))
+                .nextPosition(2L)
+                .build());
+
+        processor.onEvent(userTableMapEvent(3L));
+        processor.onEvent(WriteRowsEventBuilder.withIncludedColumns(new int[] {0, 1, 2})
+                .rows(Arrays.<Serializable[]>asList(
+                        new Serializable[] {101L, "name1", "email1"}
+                ))
+                .nextPosition(4L)
+                .build());
+
+        List<RowChangedData> list = listener.getChangedDataList();
+        SoftAssertions.assertSoftly(soft -> {
+            soft.assertThat(list).hasSize(2);
+            if (list.size() == 2) {
+                soft.assertThat(list.get(0).getType()).isEqualTo(ChangeType.INSERT);
+                soft.assertThat(list.get(0).getDatabase()).isEqualTo("test");
+                soft.assertThat(list.get(0).getTable()).isEqualTo("member");
+                soft.assertThat(list.get(0).getDataRow().getLong("id")).isEqualTo(1L);
+                soft.assertThat(list.get(0).getDataRow().getString("name")).isEqualTo("이름1");
+                soft.assertThat(list.get(0).getDataRow().getString("email")).isEqualTo("이메일1");
+                soft.assertThat(list.get(1).getType()).isEqualTo(ChangeType.INSERT);
+                soft.assertThat(list.get(1).getDatabase()).isEqualTo("test");
+                soft.assertThat(list.get(1).getTable()).isEqualTo("user");
+                soft.assertThat(list.get(1).getDataRow().getLong("col1")).isEqualTo(101L);
+                soft.assertThat(list.get(1).getDataRow().getString("col2")).isEqualTo("name1");
+                soft.assertThat(list.get(1).getDataRow().getString("col3")).isEqualTo("email1");
+            }
+        });
     }
 
     @Test
