@@ -19,3 +19,10 @@ create table test.user (
 )
 COLLATE='utf8_general_ci'
 engine = innodb;
+
+create table test.timedata (
+    id BIGINT(20),
+    dt datetime,
+    da date,
+    primary key(id)
+)

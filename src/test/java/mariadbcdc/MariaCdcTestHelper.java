@@ -261,6 +261,29 @@ public class MariaCdcTestHelper {
         }
     }
 
+    public void insertTimedata(Long id, LocalDateTime dt, LocalDate da) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement("insert into test.timedata (id, dt, da) values (?, ?, ?)")
+        ) {
+            pstmt.setLong(1, id);
+            pstmt.setTimestamp(2, Timestamp.valueOf(dt));
+            pstmt.setDate(3, java.sql.Date.valueOf(da));
+            pstmt.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void deleteTimedata() {
+        try (Connection conn = getConnection();
+             Statement stmt1 = conn.createStatement()
+        ) {
+            stmt1.executeUpdate("truncate table test.timedata");
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     public void runQuery(String query) {
         try (Connection conn = getConnection();
              Statement stmt1 = conn.createStatement()
@@ -280,7 +303,7 @@ public class MariaCdcTestHelper {
             throw new RuntimeException(ex);
         }
     }
-    
+
     public MemberInserter withId(Long id) {
         return new MemberInserter().withId(id);
     }
