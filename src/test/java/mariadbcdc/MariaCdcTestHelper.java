@@ -144,6 +144,13 @@ public class MariaCdcTestHelper {
                 posFilePath);
     }
 
+    public MariadbCdcConfig createMariadbCdcConfigUsingConnectorFactory(String posFilePath) {
+        MariadbCdcConfig config = createMariadbCdcConfig(posFilePath);
+        config.setBinaryLogWrapperFactoryClass(BinLogReaderBinaryLogWrapperFactory.class);
+        return config;
+    }
+
+
     public void insertMember(String name, String email) {
         insertMember(name, email, LocalDateTime.now());
     }
@@ -276,7 +283,7 @@ public class MariaCdcTestHelper {
     public MemberInserter withId(Long id) {
         return new MemberInserter().withId(id);
     }
-    
+
     public class MemberInserter {
         private long id;
         private String name;
@@ -284,7 +291,7 @@ public class MariaCdcTestHelper {
         private String useYn;
         private boolean agree;
         private String description;
-        private LocalDate birthday;
+        private LocalDate expdate;
         private LocalDateTime reg;
 
         public MemberInserter withId(long id) {
@@ -317,8 +324,8 @@ public class MariaCdcTestHelper {
             return this;
         }
 
-        public MemberInserter withBirthday(LocalDate birthday) {
-            this.birthday = birthday;
+        public MemberInserter withExpdate(LocalDate expdate) {
+            this.expdate = expdate;
             return this;
         }
 
@@ -329,7 +336,7 @@ public class MariaCdcTestHelper {
 
         public void insert() {
             try (Connection conn = getConnection();
-                 PreparedStatement pstmt = conn.prepareStatement("insert into test.member (id, name, email, use_yn, agree, description, birthday, reg) " +
+                 PreparedStatement pstmt = conn.prepareStatement("insert into test.member (id, name, email, use_yn, agree, description, expdate, reg) " +
                          "values (?, ?, ?, ?, ?, ?, ?, ?)")
             ) {
                 pstmt.setLong(1, id);
@@ -338,7 +345,7 @@ public class MariaCdcTestHelper {
                 pstmt.setString(4, useYn);
                 pstmt.setBoolean(5, agree);
                 pstmt.setString(6, description);
-                pstmt.setDate(7, birthday == null ? null : java.sql.Date.valueOf(birthday));
+                pstmt.setDate(7, expdate == null ? null : java.sql.Date.valueOf(expdate));
                 pstmt.setTimestamp(8, reg == null ? null : Timestamp.valueOf(reg));
                 pstmt.executeUpdate();
             } catch (SQLException ex) {

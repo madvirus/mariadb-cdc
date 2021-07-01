@@ -20,7 +20,7 @@ public class MariadbCdc {
 
     private ColumnNameCache columnNameCache;
 
-    private BinaryLogWrapperFactory wrapperFactory = new DefaultBinaryLogWrapperFactory();
+    private BinaryLogWrapperFactory wrapperFactory;
     private BinaryLogWrapper wrapper;
 
     public MariadbCdc(MariadbCdcConfig config) {
@@ -31,6 +31,18 @@ public class MariadbCdc {
         this.config = config;
         this.columnNamesGetter = columnNamesGetter;
         this.columnNameCache = new ColumnNameCache(this.columnNamesGetter);
+        Class<? extends BinaryLogWrapperFactory> klass = config.getBinaryLogWrapperFactoryClass();
+        if (klass != null) {
+            try {
+                wrapperFactory = klass.newInstance();
+            } catch (InstantiationException e) {
+                throw new RuntimeException(e);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            wrapperFactory = new DefaultBinaryLogWrapperFactory();
+        }
     }
 
     public void setMariadbCdcListener(MariadbCdcListener listener) {

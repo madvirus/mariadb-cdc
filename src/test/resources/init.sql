@@ -5,7 +5,7 @@ create table test.member (
   use_yn char(1),
   agree boolean,
   description varchar(4000),
-  birthday date,
+  expdate date,
   reg datetime default current_timestamp(),
   primary key(id)
 )

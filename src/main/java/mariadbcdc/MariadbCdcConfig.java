@@ -1,18 +1,21 @@
 package mariadbcdc;
 
+import java.time.Duration;
+
 public class MariadbCdcConfig {
     private String host;
     private int port;
     private String user;
     private String password;
     private String positionTraceFile;
-
+    private Duration heartbeatPeriod;
     private Long serverId;
 
     private String[] excludeFilters;
     private String[] includeFilters;
 
     private int localDateTimeAdjustingHour = 0;
+    private Class<? extends BinaryLogWrapperFactory> binaryLogWrapperFactoryClass;
 
     public MariadbCdcConfig(String host, int port, String user, String password, String positionTraceFile) {
         this.host = host;
@@ -72,5 +75,21 @@ public class MariadbCdcConfig {
 
     public int getLocalDateTimeAdjustingHour() {
         return localDateTimeAdjustingHour;
+    }
+
+    public void setHeartbeatPeriod(Duration heartbeatPeriodSeconds) {
+        this.heartbeatPeriod = heartbeatPeriod;
+    }
+
+    public Duration getHeartbeatPeriod() {
+        return heartbeatPeriod;
+    }
+
+    public Class<? extends BinaryLogWrapperFactory> getBinaryLogWrapperFactoryClass() {
+        return binaryLogWrapperFactoryClass;
+    }
+
+    public void setBinaryLogWrapperFactoryClass(Class<? extends BinaryLogWrapperFactory> binaryLogWrapperFactoryClass) {
+        this.binaryLogWrapperFactoryClass = binaryLogWrapperFactoryClass;
     }
 }
