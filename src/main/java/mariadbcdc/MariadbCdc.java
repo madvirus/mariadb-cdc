@@ -1,5 +1,6 @@
 package mariadbcdc;
 
+import mariadbcdc.shyikobinlog.DefaultBinaryLogWrapperFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

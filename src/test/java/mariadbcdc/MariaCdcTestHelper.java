@@ -1,5 +1,6 @@
 package mariadbcdc;
 
+import mariadbcdc.binlog.BinLogReaderBinaryLogWrapperFactory;
 import org.testcontainers.containers.MariaDBContainer;
 
 import java.io.IOException;
