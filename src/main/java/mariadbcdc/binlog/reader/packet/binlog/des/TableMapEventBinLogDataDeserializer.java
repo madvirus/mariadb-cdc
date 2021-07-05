@@ -5,9 +5,12 @@ import mariadbcdc.binlog.reader.io.ReadPacketData;
 import mariadbcdc.binlog.reader.packet.binlog.BinLogData;
 import mariadbcdc.binlog.reader.packet.binlog.BinLogHeader;
 import mariadbcdc.binlog.reader.packet.binlog.BinLogStatus;
+import mariadbcdc.binlog.reader.packet.binlog.data.FullMeta;
 import mariadbcdc.binlog.reader.packet.binlog.data.TableMapEvent;
 
+import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.List;
 import java.util.Map;
 
 public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializer {
@@ -31,9 +34,8 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
         int[] metadata = toMetaData(metadataBlock, fieldTypes);
         int bitfieldLen = (numberOfColumns + 7) >> 3; // readPacketData.remaining();
         byte[] nullabilityBitField = readPacketData.readBytes(bitfieldLen);
-        if (readPacketData.remaining() > 0) {
 
-        }
+        FullMeta fullMeta = readFullMeta(readPacketData);
 
         return new TableMapEvent(
                 tableId,
@@ -42,8 +44,33 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
                 numberOfColumns,
                 fieldTypes,
                 metadata,
-                BitSet.valueOf(nullabilityBitField)
+                BitSet.valueOf(nullabilityBitField),
+                fullMeta
         );
+    }
+
+    private FullMeta readFullMeta(ReadPacketData readPacketData) {
+        if (readPacketData.remaining() == 0) {
+            return null;
+        }
+        FullMeta fullMeta = new FullMeta();
+
+        while(readPacketData.remaining() > 0) {
+            int fieldType = readPacketData.readInt(1);
+            int fieldLen = readPacketData.readLengthEncodedInt();
+            if (fieldType != 4) {
+                readPacketData.skip(fieldLen);
+                continue;
+            }
+            readPacketData.endBlock(readPacketData.getPacketLength() - (readPacketData.remaining() - fieldLen));
+            List<String> columnNames = new ArrayList<>();
+            while (readPacketData.remaining() > 0) {
+                columnNames.add(readPacketData.readLengthEncodedString());
+            }
+            fullMeta.setColumnNames(columnNames);
+            readPacketData.resetEndBlock();
+        }
+        return fullMeta;
     }
 
     private int[] toMetaData(byte[] metadataBlock, FieldType[] fieldTypes) {

@@ -1,4 +1,4 @@
-package mariadbcdc.binlog;
+package mariadbcdc.shyikobinlog;
 
 import mariadbcdc.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("integration")
 @Testcontainers
-public class MariadbCdc_Binlog_Time_Test {
+public class MariadbCdc_Time_Test {
     @Container
     public MariaDBContainer mariaDB = (MariaDBContainer) new MariaDBContainer("mariadb:10.3")
             .withConfigurationOverride("conf.d.103")
@@ -55,12 +55,12 @@ public class MariadbCdc_Binlog_Time_Test {
 
         Sleeps.sleep(1);
         cdc.stop();
+
         LocalDateTime dt = results.get(0).getDataRow().getLocalDateTime("dt");
-        System.out.println(dt);
         assertThat(dt).isEqualTo(LocalDateTime.of(2021, 7, 31, 19, 0, 3));
     }
 
     private MariadbCdcConfig createConfig(String posFilePath) {
-        return helper.createMariadbCdcConfigUsingConnectorFactory(posFilePath);
+        return helper.createMariadbCdcConfig(posFilePath);
     }
 }

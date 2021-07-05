@@ -274,6 +274,22 @@ public class MariaCdcTestHelper {
         }
     }
 
+    public TestTimedata selectTimedata(Long id) {
+        try (Connection conn = getConnection();
+             Statement stmt1 = conn.createStatement();
+             ResultSet rs = stmt1.executeQuery("select * from test.timedata where id = " + id)
+        ) {
+            if (!rs.next()) return null;
+            return new TestTimedata(
+                    rs.getLong("id"),
+                    rs.getTimestamp("dt"),
+                    rs.getDate("da")
+            );
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     public void deleteTimedata() {
         try (Connection conn = getConnection();
              Statement stmt1 = conn.createStatement()

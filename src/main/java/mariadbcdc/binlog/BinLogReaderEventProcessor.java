@@ -88,11 +88,10 @@ public class BinLogReaderEventProcessor implements BinLogListener {
         database = tableData.getDatabaseName();
         table = tableData.getTableName();
         columnTypes = tableData.getFieldTypes();
-        columnNamesOfMetadata = null;
-//        columnNamesOfMetadata = Optional.ofNullable(tableData.getEventMetadata())
-//                .map(meta -> meta.getColumnNames())
-//                .filter(col -> !col.isEmpty())
-//                .orElse(null);
+        columnNamesOfMetadata = tableData.getFullMeta()
+                .map(fm -> fm.getColumnNames())
+                .filter(names -> names != null && !names.isEmpty())
+                .orElse(null);
     }
 
     private boolean hasPrecededDatabaseTableName() {

@@ -5,6 +5,7 @@ import mariadbcdc.binlog.reader.packet.binlog.BinLogData;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Optional;
 
 public class TableMapEvent implements BinLogData {
     /** The table ID. */
@@ -20,13 +21,16 @@ public class TableMapEvent implements BinLogData {
     /** Bit-field indicating whether each column can be NULL, one bit per column. */
     private final BitSet nullability;
 
+    private FullMeta fullMeta;
+
     public TableMapEvent(long tableId,
                          String databaseName,
                          String tableName,
                          int numberOfColumns,
                          FieldType[] fieldTypes,
                          int[] metadata,
-                         BitSet nullability) {
+                         BitSet nullability,
+                         FullMeta fullMeta) {
         this.tableId = tableId;
         this.databaseName = databaseName;
         this.tableName = tableName;
@@ -34,6 +38,7 @@ public class TableMapEvent implements BinLogData {
         this.fieldTypes = fieldTypes;
         this.metadata = metadata;
         this.nullability = nullability;
+        this.fullMeta = fullMeta;
     }
 
     public long getTableId() {
@@ -62,6 +67,10 @@ public class TableMapEvent implements BinLogData {
 
     public BitSet getNullability() {
         return nullability;
+    }
+
+    public Optional<FullMeta> getFullMeta() {
+        return Optional.ofNullable(fullMeta);
     }
 
     @Override

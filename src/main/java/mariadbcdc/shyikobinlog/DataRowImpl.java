@@ -8,9 +8,7 @@ import java.io.Serializable;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -189,7 +187,8 @@ public class DataRowImpl implements DataRow {
                 case TIMESTAMP:
                 case TIMESTAMP_V2:
                     if (value instanceof Long) {
-                        LocalDateTime localDateTime = new Timestamp(((Number) value).longValue()).toLocalDateTime();
+                        long timestamp = ((Long)value).longValue();
+                        LocalDateTime localDateTime = LocalDateTime.ofEpochSecond(timestamp / 1000, (int)(timestamp % 1000) * 1000000, ZoneOffset.UTC);
                         if (localDateTimeAdjustingHour != 0) {
                             localDateTime = localDateTime.plusHours(localDateTimeAdjustingHour);
                         }
