@@ -126,7 +126,6 @@ public class MariadbCdc_103_Basic_Test {
         helper.deleteSavedPositionFile("temp/pos.saved");
 
         MariadbCdcConfig config = helper.createMariadbCdcConfig("temp/pos.saved");
-        config.setLocalDateTimeAdjustingHour(-9);
         MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);
 
         List<RowChangedData> result = new ArrayList<>();

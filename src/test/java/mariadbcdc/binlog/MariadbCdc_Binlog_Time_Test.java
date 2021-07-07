@@ -56,7 +56,6 @@ public class MariadbCdc_Binlog_Time_Test {
         Sleeps.sleep(1);
         cdc.stop();
         LocalDateTime dt = results.get(0).getDataRow().getLocalDateTime("dt");
-        System.out.println(dt);
         assertThat(dt).isEqualTo(LocalDateTime.of(2021, 7, 31, 19, 0, 3));
     }
 

@@ -126,7 +126,6 @@ public class MariadbCdc_Binlog_103_Basic_Test {
         helper.deleteSavedPositionFile("temp/pos.saved");
 
         MariadbCdcConfig config = createConfig("temp/pos.saved");
-        config.setLocalDateTimeAdjustingHour(-9);
         MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);
 
         List<RowChangedData> result = new ArrayList<>();
@@ -164,7 +163,7 @@ public class MariadbCdc_Binlog_103_Basic_Test {
         });
     }
 
-    private void handleUpdatedData() throws IOException {
+    private void handleUpdatedData() {
         helper.deleteSavedPositionFile("temp/pos.saved");
         MariadbCdcConfig config = createConfig("temp/pos.saved");
         MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);

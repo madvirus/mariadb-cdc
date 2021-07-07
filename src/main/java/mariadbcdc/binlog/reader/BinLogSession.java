@@ -42,11 +42,13 @@ class BinLogSession {
     private final ReadPacketReader readPacketReader;
     private final WritePacketWriter writePacketWriter;
 
-    public BinLogSession(String host, int port, String user, String password) {
-        this.user = user;
-        this.password = password;
+    private long slaveServerId;
+
+    public BinLogSession(ConnectionInfo connectionInfo) {
+        this.user = connectionInfo.getUser();
+        this.password = connectionInfo.getPassword();
         try {
-            socket = new Socket(host, port);
+            socket = new Socket(connectionInfo.getHost(), connectionInfo.getPort());
             is = new BufferedInputStream(socket.getInputStream());
             out = new BufferedOutputStream(socket.getOutputStream());
             packetIO = new PacketIO(is, out);
@@ -93,6 +95,8 @@ class BinLogSession {
         checksum = handler.handleChecksum();
         logger.debug("checksum: {}", checksum);
         handler.startBinlogDump(binlogFile, binlogPosition, slaveServerId);
+        this.slaveServerId = slaveServerId;
+        logger.info("[slaveServerId={}] started binlog dump", slaveServerId);
     }
 
     public Either<ErrPacket, BinLogEvent> readBinlog() {
@@ -103,7 +107,7 @@ class BinLogSession {
     }
 
     public void close() {
-        logger.debug("closing session");
+        logger.debug("[slaveServerId={}] closing session", slaveServerId);
         try {
             writePacketWriter.write(ComQuitPacket.INSTANCE);
         } catch (Exception e) {
@@ -120,6 +124,6 @@ class BinLogSession {
             socket.close();
         } catch (IOException e) {
         }
-        logger.debug("closed session");
+        logger.debug("[slaveServerId={}] closed session", slaveServerId);
     }
 }

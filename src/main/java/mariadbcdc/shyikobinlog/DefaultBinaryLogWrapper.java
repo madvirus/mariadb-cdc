@@ -105,8 +105,7 @@ public class DefaultBinaryLogWrapper implements BinaryLogWrapper {
                 },
                 binlogPositionSaver,
                 columnNamesGetter,
-                schemaChangeListener,
-                config.getLocalDateTimeAdjustingHour());
+                schemaChangeListener);
         processor.setIncludeFilters(config.getIncludeFilters());
         processor.setExcludeFilters(config.getExcludeFilters());
         return processor;

@@ -20,7 +20,6 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
     private BinlogPositionSaver binlogPositionSaver;
     private ColumnNamesGetter columnNamesGetter;
     private SchemaChangeListener schemaChangeListener;
-    private int localDateTimeAdjustingHour;
 
     private Map<String, Boolean> includeFilters = Collections.emptyMap();
     private Map<String, Boolean> excludeFilters = Collections.emptyMap();
@@ -36,21 +35,12 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
                                    CurrentBinlogFilenameGetter currentBinlogFilenameGetter,
                                    BinlogPositionSaver binlogPositionSaver,
                                    ColumnNamesGetter columnNamesGetter,
-                                   SchemaChangeListener schemaChangeListener,
-                                   int localDateTimeAdjustingHour) {
+                                   SchemaChangeListener schemaChangeListener) {
         this.currentBinlogFilenameGetter = currentBinlogFilenameGetter;
         this.listener = listener;
         this.binlogPositionSaver = binlogPositionSaver;
         this.columnNamesGetter = columnNamesGetter;
         this.schemaChangeListener = schemaChangeListener;
-        this.localDateTimeAdjustingHour = localDateTimeAdjustingHour;
-    }
-    public BinaryLogEventProcessor(MariadbCdcListener listener,
-                                   CurrentBinlogFilenameGetter currentBinlogFilenameGetter,
-                                   BinlogPositionSaver binlogPositionSaver,
-                                   ColumnNamesGetter columnNamesGetter,
-                                   SchemaChangeListener schemaChangeListener) {
-        this(listener, currentBinlogFilenameGetter, binlogPositionSaver, columnNamesGetter, schemaChangeListener, 0);
     }
 
     @Override
@@ -227,7 +217,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
     }
 
     private DataRow convertDataRow(List<String> colNames, List<ColumnType> incColTypes, Serializable[] row) {
-        DataRowImpl dataRow = new DataRowImpl(localDateTimeAdjustingHour);
+        DataRowImpl dataRow = new DataRowImpl();
         for (int i = 0; i < row.length; i++) {
             dataRow.add(colNames.isEmpty() ? "col" + i : colNames.get(i),
                     incColTypes.isEmpty() ? null : incColTypes.get(i),

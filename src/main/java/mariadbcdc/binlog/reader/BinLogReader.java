@@ -10,19 +10,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class BinLogReader {
     private Logger logger = LoggerFactory.getLogger(getClass());
 
-    private final String host;
-    private final int port;
-    private final String user;
-    private final String password;
+    private String readerId;
+
+    private ConnectionInfo connectionInfo;
     private Duration heartbeatPeriod;
 
     private BinLogSession session;
+    private AtomicBoolean disconnected = new AtomicBoolean(true);
+    private AtomicBoolean reading = new AtomicBoolean(false);
 
-    private boolean reading = false;
     private BinLogListener listener = BinLogListener.NULL;
     private BinLogLifecycleListener binLogLifecycleListener = BinLogLifecycleListener.NULL;
 
@@ -30,19 +35,24 @@ public class BinLogReader {
     private long binlogPosition;
     private long slaveServerId = 65535;
 
+    private AtomicLong lastEventTimestamp = new AtomicLong(0L);
+
+    private boolean reconnection = false;
+    private Duration keepConnectionTimeout;
+    private ReconnectThread reconnectThread;
+
     public BinLogReader(String host, int port, String user, String password) {
-        this.host = host;
-        this.port = port;
-        this.user = user;
-        this.password = password;
+        this(host, port, user, password, null);
     }
 
     public BinLogReader(String host, int port, String user, String password, Duration heartbeatPeriod) {
-        this.host = host;
-        this.port = port;
-        this.user = user;
-        this.password = password;
+        assignReaderIdRandomly();
+        connectionInfo = new ConnectionInfo(host, port, user, password);
         this.heartbeatPeriod = heartbeatPeriod;
+    }
+
+    private void assignReaderIdRandomly() {
+        this.readerId = Integer.toString(ThreadLocalRandom.current().nextInt(1000, 10000));
     }
 
     public void setStartBinlogPosition(String filename, long position) {
@@ -74,7 +84,7 @@ public class BinLogReader {
         int trycnt = 1;
         while(true) {
             try {
-                session = new BinLogSession(host, port, user, password);
+                session = new BinLogSession(connectionInfo);
                 session.handshake();
 
                 if (heartbeatPeriod != null && !heartbeatPeriod.isNegative() && heartbeatPeriod.getSeconds() > 0) {
@@ -98,30 +108,72 @@ public class BinLogReader {
                 }
             }
         }
+        logger.debug("[readerId={}] connected", readerId);
         binLogLifecycleListener.onConnected();
     }
 
     public void start() {
-        session.registerSlave(binlogFile, binlogPosition, slaveServerId);
-        binLogLifecycleListener.onStarted();
-        try {
-            read();
-        } catch (BinLogException e) {
-            if (reading) {
-                throw e;
+        registerSlave();
+        startReconnectThreadIfReconnectionEnabled();
+        while(isKeepReading()) {
+            try {
+                read();
+            } catch (BinLogException e) {
+                if (reading.get()) {
+                    throw e;
+                }
+                logger.debug("[readerId={}] slaveServerId={} ignore BinLogException because disconnected", readerId, slaveServerId);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException interruptedException) {
+                }
             }
-            logger.debug("ignore BinLogException because disconnected");
         }
     }
 
-    public void read() {
-        reading = true;
+    private Lock lock = new ReentrantLock();
+
+    private boolean isKeepReading() {
+        lock.lock();
         try {
-            while (reading) {
+            return reconnection && !disconnected.get();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void registerSlave() {
+        session.registerSlave(binlogFile, binlogPosition, slaveServerId);
+        logger.debug("[readerId={}] slaveServerId={} slave registered", readerId, slaveServerId);
+        this.disconnected.set(false);
+        updateLastEventTimestamp();
+        binLogLifecycleListener.onStarted();
+    }
+
+    private void updateLastEventTimestamp() {
+        lastEventTimestamp.set(System.currentTimeMillis());
+    }
+
+    private void startReconnectThreadIfReconnectionEnabled() {
+        if (reconnection) {
+            reconnectThread = new ReconnectThread();
+            reconnectThread.start();
+            logger.debug("[readerId={}] slaveServerId={} start ReconnectThread", readerId, slaveServerId);
+        }
+    }
+
+    private void read() {
+        if (session == null) return;
+        reading.set(true);
+        try {
+            while (reading.get()) {
                 Either<ErrPacket, BinLogEvent> readEvent = session.readBinlog();
+                updateLastEventTimestamp();
                 try {
                     if (readEvent.isLeft()) {
-                        listener.onErr(readEvent.getLeft());
+                        ErrPacket errPacket = readEvent.getLeft();
+                        logger.debug("[readerId={}] slaveServerId={} ErrPacket: {}", readerId, slaveServerId, errPacket);
+                        listener.onErr(errPacket);
                     } else {
                         BinLogEvent event = readEvent.getRight();
 
@@ -149,17 +201,17 @@ public class BinLogReader {
                             } else if (event.getHeader().getEventType() == BinlogEventType.HEARTBEAT_LOG_EVENT) {
                                 listener.onHeartbeatEvent(event.getHeader(), (HeartbeatEvent) event.getData());
                             } else if (event.getHeader().getEventType() == BinlogEventType.STOP_EVENT) {
-                                reading = false;
+                                reading.set(false);
                                 listener.onStopEvent(event.getHeader(), (StopEvent) event.getData());
                             }
                         }
                     }
                 } catch (Exception ex) {
-                    logger.warn("ignore exception: " + ex.getMessage());
+                    logger.warn("[readerId={}] slaveServerId={} ignore exception: {}", readerId, slaveServerId, ex.getMessage());
                 }
             }
         } finally {
-            reading = false;
+            reading.set(false);
         }
     }
 
@@ -172,9 +224,17 @@ public class BinLogReader {
     }
 
     public void disconnect() {
-        if (reading) reading = false;
+        disconnected.set(true);
+        reading.compareAndSet(true, false);
+        stopReconnectThread();
+        closeSession();
+        logger.debug("[readerId={}] slaveServerId={} disconnected", readerId, slaveServerId);
+    }
+
+    private void closeSession() {
         if (session != null) {
             session.close();
+            logger.debug("[readerId={}] slaveServerId={} closed session", readerId, slaveServerId);
             try {
                 binLogLifecycleListener.onDisconnected();
             } catch (Exception e) {
@@ -184,7 +244,88 @@ public class BinLogReader {
         session = null;
     }
 
+    private void stopReconnectThread() {
+        if (reconnectThread != null) {
+            reconnectThread.stopReconnect();
+            logger.warn("[readerId={}] slaveServerId={} stop ReconnectThread", readerId, slaveServerId);
+            reconnectThread = null;
+        }
+    }
+
     public boolean isReading() {
-        return reading;
+        return reading.get();
+    }
+
+    public void enableReconnection() {
+        this.reconnection = true;
+    }
+
+    /**
+     * Max time to keep connection without no event receiving.
+     * This value is used only if reconnection is enabled.
+     * BinLogReader check last event received time and reconnect to server if no event received in keepConnectionTimeout
+     *
+     * This valud must be greater than heartbeatPeriod.
+     *
+     * @param keepConnectionTimeout
+     */
+    public void setKeepConnectionTimeout(Duration keepConnectionTimeout) {
+        this.keepConnectionTimeout = keepConnectionTimeout;
+    }
+
+    public void setHeartbeatPeriod(Duration heartbeatPeriod) {
+        this.heartbeatPeriod = heartbeatPeriod;
+    }
+
+    public void setReaderId(String readerId) {
+        this.readerId = readerId;
+    }
+
+    class ReconnectThread extends Thread {
+        private boolean reconnectRunning = true;
+        public ReconnectThread() {
+        }
+
+        @Override
+        public void run() {
+            reconnectRunning = true;
+            while(reconnectRunning) {
+                try {
+                    Thread.sleep(keepConnectionTimeout.toMillis());
+                    if (System.currentTimeMillis() - lastEventTimestamp.get() > keepConnectionTimeout.toMillis()) {
+                        logger.warn("[readerId={}] slaveServerId={} no event received in {}, so try reconnect", readerId, slaveServerId, keepConnectionTimeout);
+                        tryReconnect();
+                    }
+                } catch (InterruptedException e) {
+                }
+            }
+        }
+
+        public void stopReconnect() {
+            reconnectRunning = false;
+            this.interrupt();
+        }
+    }
+
+    private void tryReconnect() {
+        lock.lock();
+        try {
+            closeSession();
+            try {
+                connect();
+            } catch (Exception e) {
+                logger.warn("[readerId={}] slaveServerId={} fail to reconnect: {}", readerId, slaveServerId, e.getMessage());
+                return;
+            }
+            try {
+                registerSlave();
+                logger.debug("[readerId={}] slaveServerId={} reconnected", readerId, slaveServerId);
+            } catch (Exception e) {
+                logger.warn("[readerId={}] slaveServerId={} fail to reregister slave: {}", readerId, slaveServerId, e.getMessage());
+                closeSession();
+            }
+        } finally {
+            lock.unlock();
+        }
     }
 }

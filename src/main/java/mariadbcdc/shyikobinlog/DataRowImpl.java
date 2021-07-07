@@ -8,7 +8,10 @@ import java.io.Serializable;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,14 +21,8 @@ public class DataRowImpl implements DataRow {
     private List<Serializable> values = new ArrayList<>();
     private Map<String, Serializable> valueMap = new HashMap<>();
     private boolean hasTableColumnNames;
-    private long localDateTimeAdjustingHour;
 
     public DataRowImpl() {
-        this(0L);
-    }
-
-    public DataRowImpl(long localDateTimeAdjustingHour) {
-        this.localDateTimeAdjustingHour = localDateTimeAdjustingHour;
     }
 
     @Override
@@ -189,12 +186,11 @@ public class DataRowImpl implements DataRow {
                     if (value instanceof Long) {
                         long timestamp = ((Long)value).longValue();
                         LocalDateTime localDateTime = LocalDateTime.ofEpochSecond(timestamp / 1000, (int)(timestamp % 1000) * 1000000, ZoneOffset.UTC);
-                        if (localDateTimeAdjustingHour != 0) {
-                            localDateTime = localDateTime.plusHours(localDateTimeAdjustingHour);
-                        }
                         addValue(colName, localDateTime);
                     } else if (value instanceof Timestamp) {
                         addValue(colName, ((Timestamp) value).toLocalDateTime());
+                    } else if (value instanceof java.util.Date) {
+                        addValue(colName, new Timestamp(((java.util.Date) value).getTime()).toLocalDateTime());
                     } else {
                         addValue(colName, value);
                     }

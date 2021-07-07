@@ -39,7 +39,7 @@ public class MariadbCdc_Binlog_NoColumnNames_Test {
         helper.insertMember("name1", "email1");
         helper.changeMemberSchema();
 
-        MariadbCdcConfig config = helper.createMariadbCdcConfig("temp/pos.saved");
+        MariadbCdcConfig config = createConfig("temp/pos.saved");
         MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);
 
         List<RowChangedData> result = new ArrayList<>();
@@ -73,5 +73,10 @@ public class MariadbCdc_Binlog_NoColumnNames_Test {
             soft.assertThat(result.get(1).getDataRow().getString("email")).isEqualTo("email2");
             soft.assertThat(result.get(1).getDataRow().getLocalDate("birthday")).isNull();
         });
+    }
+
+    private MariadbCdcConfig createConfig(String posFilePath) {
+        MariadbCdcConfig config = helper.createMariadbCdcConfigUsingConnectorFactory(posFilePath);
+        return config;
     }
 }

@@ -14,7 +14,6 @@ public class MariadbCdcConfig {
     private String[] excludeFilters;
     private String[] includeFilters;
 
-    private int localDateTimeAdjustingHour = 0;
     private Class<? extends BinaryLogWrapperFactory> binaryLogWrapperFactoryClass;
 
     public MariadbCdcConfig(String host, int port, String user, String password, String positionTraceFile) {
@@ -67,14 +66,6 @@ public class MariadbCdcConfig {
 
     public String[] getIncludeFilters() {
         return includeFilters;
-    }
-
-    public void setLocalDateTimeAdjustingHour(int localDateTimeAdjustingHour) {
-        this.localDateTimeAdjustingHour = localDateTimeAdjustingHour;
-    }
-
-    public int getLocalDateTimeAdjustingHour() {
-        return localDateTimeAdjustingHour;
     }
 
     public void setHeartbeatPeriod(Duration heartbeatPeriodSeconds) {

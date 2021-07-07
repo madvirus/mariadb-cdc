@@ -151,7 +151,6 @@ public class MariaCdcTestHelper {
         return config;
     }
 
-
     public void insertMember(String name, String email) {
         insertMember(name, email, LocalDateTime.now());
     }
