@@ -12,8 +12,8 @@ binlog_row_image = full
 
 > If binlog_row_image is full, all columns in the before and after image are logged.
 
-### To create a user for cdc
-To use cdc, creates a user which is granted REPLICATION SLAVE, REPLICATION CLIENT and SELECT privileges.
+### Creating a user for cdc
+To use cdc, create a user which is granted REPLICATION SLAVE, REPLICATION CLIENT and SELECT privileges.
 
 ```
 CREATE USER cdc@'%' IDENTIFIED BY 'password'
@@ -36,7 +36,7 @@ GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO cdc@'%'
 <dependency>
     <groupId>com.github.madvirus</groupId>
     <artifactId>mariadb-cdc</artifactId>
-    <version>0.13.5</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
@@ -48,7 +48,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.madvirus:mariadb-cdc:0.11.0'
+    implementation 'com.github.madvirus:mariadb-cdc:1.0.0'
 }
 ```
 
@@ -56,7 +56,7 @@ dependencies {
 
 ### Basic usage
 
-#### Step 1, create MariadbCdcConfig
+#### Step 1, create a MariadbCdcConfig
 
 Create a MariadbCdcConfig:
 ```java
@@ -94,7 +94,18 @@ WHERE table_schema = '?' and TABLE_NAME = '?'
 order by ORDINAL_POSITION
 ``` 
 
+If you use mariadb 10.5 or above version and config 'full' binlog_row_metadata value,
+then JdbcColumnNamesGetter is not needed to get column names:
+
+```
+// use mariadb 10.5 and 'full' binlog_row_metadata value
+// JdbcColumnNamesGetter is not needed
+MariadbCdc cdc = new MariadbCdc(config);
+```
+
 #### Step 3, set MariadbCdcListener
+
+Use MariadbCdc#setMariadbCdcListener method to handle CDC event:
 
 ```
 cdc.setMariadbCdcListener(new MariadbCdcListener() {
@@ -105,7 +116,7 @@ cdc.setMariadbCdcListener(new MariadbCdcListener() {
 
     @Override
     public void startFailed(Exception e) {
-        // failed
+        // failed to start cdc
     }
 
     @Override
@@ -145,12 +156,17 @@ cdc.setMariadbCdcListener(new MariadbCdcListener() {
 #### Step 4, start/stop MariadbCdc
 
 ```java
-cdc.start(); // start reading binary log using separate thread 
+// start reading binary log.
+// start() method launches a separate thread for reading log 
+cdc.start(); // do not block current thread
 
 ...
 
 cdc.stop(); // stop reading
 ```
+
+> MariadbCdc#start() method launches a separate thread for reading binary log,
+so this method does not block the current thread.
 
 ### Including/Excluding specific tables
 
@@ -209,3 +225,24 @@ public void onDataChanged(List<RowChangedData> list) {
 MariaDB 10.5 supports binlog_row_metadata config variable.
 When binlog_row_metadata is FULL, then all metadata (including column names) is logged.
 So if binlog_row_metadata is FULL, no ColumnNamesGetter is required.
+
+## Binlog reader implementation
+
+Supported Two binlog readers:
+* DefaultBinaryLogWrapper (default)
+* BinLogReaderBinaryLogWrapper (experiment)
+
+Default binlog reader is DefaultBinaryLogWrapper.
+DefaultBinaryLogWrapper use a mysql-binlog-connector-java(shyiko binlog).
+
+If you want to change reader, use MariadbCdcConfig#setBinaryLogWrapperFactoryClass method: 
+
+```
+config.setBinaryLogWrapperFactoryClass(BinLogReaderBinaryLogWrapperFactory.class);
+```
+
+### BinLogReaderBinaryLogWrapper contraints
+
+* Only username/password authentication support
+* No SSL support
+* No gtid support
