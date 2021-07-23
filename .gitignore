@@ -2,3 +2,4 @@
 .idea
 build
 temp
+src/test/java/temp/*

@@ -81,26 +81,22 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
             if (data instanceof WriteRowsEventData ||
                     data instanceof UpdateRowsEventData ||
                     data instanceof DeleteRowsEventData) {
-                try {
-                    long tableId = getTableId(data);
-                    TableInfo tableInfo = tableInfos.getTableInfo(tableId);
-                    if (tableInfo != null && tableInfo.hasDatabaseTableName()) {
-                        if (rowsEventDataIncluded(tableInfo.getDatabase(), tableInfo.getTable())) {
-                            List<String> colNames = getColumnNames(tableInfo);
-                            if (colNames.size() > 0 && colNames.size() != tableInfo.getColumnTypes().length) {
-                                colNames = Collections.emptyList();
-                            }
-                            if (data instanceof WriteRowsEventData) {
-                                handleWriteRowsEventData(currentEventBinLogPosition, header, tableInfo, (WriteRowsEventData) data, colNames);
-                            } else if (data instanceof UpdateRowsEventData) {
-                                handleUpdateRowsEventData(currentEventBinLogPosition, header, tableInfo, (UpdateRowsEventData) data, colNames);
-                            } else if (data instanceof DeleteRowsEventData) {
-                                handleDeleteRowsEventData(currentEventBinLogPosition, header, tableInfo, (DeleteRowsEventData) data, colNames);
-                            }
+                long tableId = getTableId(data);
+                TableInfo tableInfo = tableInfos.getTableInfo(tableId);
+                if (tableInfo != null && tableInfo.hasDatabaseTableName()) {
+                    if (rowsEventDataIncluded(tableInfo.getDatabase(), tableInfo.getTable())) {
+                        List<String> colNames = getColumnNames(tableInfo);
+                        if (colNames.size() > 0 && colNames.size() != tableInfo.getColumnTypes().length) {
+                            colNames = Collections.emptyList();
+                        }
+                        if (data instanceof WriteRowsEventData) {
+                            handleWriteRowsEventData(currentEventBinLogPosition, header, tableInfo, (WriteRowsEventData) data, colNames);
+                        } else if (data instanceof UpdateRowsEventData) {
+                            handleUpdateRowsEventData(currentEventBinLogPosition, header, tableInfo, (UpdateRowsEventData) data, colNames);
+                        } else if (data instanceof DeleteRowsEventData) {
+                            handleDeleteRowsEventData(currentEventBinLogPosition, header, tableInfo, (DeleteRowsEventData) data, colNames);
                         }
                     }
-                } finally {
-                    tableInfos.clear();
                 }
             }
 
@@ -119,11 +115,11 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
 
     private long getTableId(EventData data) {
         if (data instanceof WriteRowsEventData) {
-            return ((WriteRowsEventData)data).getTableId();
+            return ((WriteRowsEventData) data).getTableId();
         } else if (data instanceof UpdateRowsEventData) {
-            return ((UpdateRowsEventData)data).getTableId();
+            return ((UpdateRowsEventData) data).getTableId();
         } else if (data instanceof DeleteRowsEventData) {
-            return ((DeleteRowsEventData)data).getTableId();
+            return ((DeleteRowsEventData) data).getTableId();
         } else {
             return -1;
         }
@@ -154,7 +150,8 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
 
     private List<String> getColumnNames(TableInfo tableInfo) {
         if (tableInfo.getColumnNamesOfMetadata() != null) return tableInfo.getColumnNamesOfMetadata();
-        if (tableInfo.hasDatabaseTableName()) return columnNamesGetter.getColumnNames(tableInfo.getDatabase(), tableInfo.getTable());
+        if (tableInfo.hasDatabaseTableName())
+            return columnNamesGetter.getColumnNames(tableInfo.getDatabase(), tableInfo.getTable());
         return Collections.emptyList();
     }
 

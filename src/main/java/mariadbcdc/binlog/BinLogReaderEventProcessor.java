@@ -156,7 +156,6 @@ public class BinLogReaderEventProcessor implements BinLogListener {
                 listener.onDataChanged(rowChangedDataList);
             }
         } finally {
-            clearTableInfos();
             binlogPositionSaver.save(currentEventBinLogPosition);
         }
     }
@@ -166,10 +165,6 @@ public class BinLogReaderEventProcessor implements BinLogListener {
         Boolean excluded = excludeFilters.getOrDefault(dbTableName, Boolean.FALSE);
         Boolean included = includeFilters.isEmpty() || includeFilters.getOrDefault(dbTableName, Boolean.FALSE);
         return !excluded && included;
-    }
-
-    private void clearTableInfos() {
-        this.tableInfos.clear();
     }
 
     private DataRow convertDataRow(List<String> colNames, List<FieldType> incColTypes, Object[] row) {
