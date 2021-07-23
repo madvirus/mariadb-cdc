@@ -24,10 +24,7 @@ public class BinLogReaderEventProcessor implements BinLogListener {
 
     private String currentBinlogFilename;
 
-    private String database;
-    private String table;
-    private FieldType[] columnTypes;
-    private List<String> columnNamesOfMetadata;
+    private TableInfos tableInfos = new TableInfos();
 
     public BinLogReaderEventProcessor(MariadbCdcListener listener,
                                       CurrentBinlogFilenameGetter currentBinlogFilenameGetter,
@@ -85,30 +82,17 @@ public class BinLogReaderEventProcessor implements BinLogListener {
 
     @Override
     public void onTableMapEvent(BinLogHeader header, TableMapEvent tableData) {
-        database = tableData.getDatabaseName();
-        table = tableData.getTableName();
-        columnTypes = tableData.getFieldTypes();
-        columnNamesOfMetadata = tableData.getFullMeta()
-                .map(fm -> fm.getColumnNames())
-                .filter(names -> names != null && !names.isEmpty())
-                .orElse(null);
-    }
-
-    private boolean hasPrecededDatabaseTableName() {
-        return database != null && database.length() > 0 && table != null && table.length() > 0;
-    }
-
-    private boolean rowsEventDataIncluded() {
-        String dbTableName = database + "." + table;
-        Boolean excluded = excludeFilters.getOrDefault(dbTableName, Boolean.FALSE);
-        Boolean included = includeFilters.isEmpty() || includeFilters.getOrDefault(dbTableName, Boolean.FALSE);
-        return !excluded && included;
-    }
-
-    private List<String> getColumnNames() {
-        return columnNamesOfMetadata != null ? columnNamesOfMetadata :
-                hasPrecededDatabaseTableName() ? columnNamesGetter.getColumnNames(database, table) :
-                        Collections.emptyList();
+        TableInfo tableInfo = new TableInfo(
+                tableData.getTableId(),
+                tableData.getDatabaseName(),
+                tableData.getTableName(),
+                tableData.getFieldTypes(),
+                tableData.getFullMeta()
+                        .map(fm -> fm.getColumnNames())
+                        .filter(names -> names != null && !names.isEmpty())
+                        .orElse(null)
+        );
+        tableInfos.add(tableInfo);
     }
 
     private List<String> includedColumnNames(List<String> colNames, BitSet includedColumns) {
@@ -128,33 +112,64 @@ public class BinLogReaderEventProcessor implements BinLogListener {
 
     @Override
     public void onWriteRowsEvent(BinLogHeader header, WriteRowsEvent data) {
-        final BinlogPosition currentEventBinLogPosition =
-                new BinlogPosition(currentBinlogFilename, header.getNextPosition());
-        try {
-            if (hasPrecededDatabaseTableName() && rowsEventDataIncluded()) {
-                List<String> colNames = getColumnNames();
-                if (colNames.size() > 0 && colNames.size() != columnTypes.length) {
-                    colNames = Collections.emptyList();
-                }
-
+        handleRowsEvent(header, data, new RowchangeDataFactory() {
+            @Override
+            public List<RowChangedData> create(BinlogPosition binlogPosition, TableInfo tableInfo, List<String> colNames) {
                 List<String> incColNames = includedColumnNames(colNames, data.getColumnUsed());
-                List<FieldType> incColTypes = includedColumnTypes(this.columnTypes, data.getColumnUsed());
+                List<FieldType> incColTypes = includedColumnTypes(tableInfo.getColumnTypes(), data.getColumnUsed());
 
                 List<RowChangedData> rowChangedDataList = data.getRows().stream()
                         .map(row -> new RowChangedData(
                                 ChangeType.INSERT,
-                                database,
-                                table,
+                                tableInfo.getDatabase(),
+                                tableInfo.getTable(),
                                 header.getTimestamp(),
                                 convertDataRow(incColNames, incColTypes, row),
-                                currentEventBinLogPosition
+                                binlogPosition
                         ))
                         .collect(Collectors.toList());
+                return rowChangedDataList;
+            }
+        });
+    }
+
+    interface RowchangeDataFactory {
+        List<RowChangedData> create(BinlogPosition binLogPosition, TableInfo tableInfo, List<String> columnNames);
+    }
+
+    private <T extends RowsEvent> void handleRowsEvent(BinLogHeader header, T data,
+                                                       RowchangeDataFactory factory) {
+        final BinlogPosition currentEventBinLogPosition =
+                new BinlogPosition(currentBinlogFilename, header.getNextPosition());
+        try {
+            TableInfo tableInfo = tableInfos.getTableInfo(data.getTableId());
+            if (tableInfo != null && tableInfo.hasDatabaseTableName() && rowsEventDataIncluded(tableInfo)) {
+                List<String> colNames = tableInfo.getColumnNamesOfMetadata() != null ? tableInfo.getColumnNamesOfMetadata() :
+                        tableInfo.hasDatabaseTableName() ?
+                                columnNamesGetter.getColumnNames(tableInfo.getDatabase(), tableInfo.getTable()) :
+                                Collections.emptyList();
+
+                if (colNames.size() > 0 && colNames.size() != tableInfo.getColumnTypes().length) {
+                    colNames = Collections.emptyList();
+                }
+                List<RowChangedData> rowChangedDataList = factory.create(currentEventBinLogPosition, tableInfo, colNames);
                 listener.onDataChanged(rowChangedDataList);
             }
         } finally {
+            clearTableInfos();
             binlogPositionSaver.save(currentEventBinLogPosition);
         }
+    }
+
+    private boolean rowsEventDataIncluded(TableInfo tableInfo) {
+        String dbTableName = tableInfo.getDatabase() + "." + tableInfo.getTable();
+        Boolean excluded = excludeFilters.getOrDefault(dbTableName, Boolean.FALSE);
+        Boolean included = includeFilters.isEmpty() || includeFilters.getOrDefault(dbTableName, Boolean.FALSE);
+        return !excluded && included;
+    }
+
+    private void clearTableInfos() {
+        this.tableInfos.clear();
     }
 
     private DataRow convertDataRow(List<String> colNames, List<FieldType> incColTypes, Object[] row) {
@@ -170,67 +185,51 @@ public class BinLogReaderEventProcessor implements BinLogListener {
 
     @Override
     public void onUpdateRowsEvent(BinLogHeader header, UpdateRowsEvent data) {
-        final BinlogPosition currentEventBinLogPosition =
-                new BinlogPosition(currentBinlogFilename, header.getNextPosition());
-        try {
-            if (hasPrecededDatabaseTableName() && rowsEventDataIncluded()) {
-                List<String> colNames = getColumnNames();
-                if (colNames.size() > 0 && colNames.size() != columnTypes.length) {
-                    colNames = Collections.emptyList();
-                }
-
+        handleRowsEvent(header, data, new RowchangeDataFactory() {
+            @Override
+            public List<RowChangedData> create(BinlogPosition binlogPosition, TableInfo tableInfo, List<String> colNames) {
                 List<String> incColNames = includedColumnNames(colNames, data.getColumnUsed());
-                List<FieldType> incColTypes = includedColumnTypes(this.columnTypes, data.getColumnUsed());
+                List<FieldType> incColTypes = includedColumnTypes(tableInfo.getColumnTypes(), data.getColumnUsed());
                 List<String> incUpdColNames = includedColumnNames(colNames, data.getUpdateColumnUsed());
-                List<FieldType> incUpdColTypes = includedColumnTypes(this.columnTypes, data.getUpdateColumnUsed());
+                List<FieldType> incUpdColTypes = includedColumnTypes(tableInfo.getColumnTypes(), data.getUpdateColumnUsed());
 
                 List<RowChangedData> rowChangedDataList = data.getPairs().stream()
                         .map(rowPair -> new RowChangedData(
                                 ChangeType.UPDATE,
-                                database,
-                                table,
+                                tableInfo.getDatabase(),
+                                tableInfo.getTable(),
                                 header.getTimestamp(),
                                 convertDataRow(incUpdColNames, incUpdColTypes, rowPair.getAfter()),
                                 convertDataRow(incColNames, incColTypes, rowPair.getBefore()),
-                                currentEventBinLogPosition
+                                binlogPosition
                         ))
                         .collect(Collectors.toList());
-                listener.onDataChanged(rowChangedDataList);
+                return rowChangedDataList;
             }
-        } finally {
-            binlogPositionSaver.save(currentEventBinLogPosition);
-        }
+        });
     }
 
     @Override
     public void onDeleteRowsEvent(BinLogHeader header, DeleteRowsEvent data) {
-        final BinlogPosition currentEventBinLogPosition =
-                new BinlogPosition(currentBinlogFilename, header.getNextPosition());
-        try {
-            if (hasPrecededDatabaseTableName() && rowsEventDataIncluded()) {
-                List<String> colNames = getColumnNames();
-                if (colNames.size() > 0 && colNames.size() != columnTypes.length) {
-                    colNames = Collections.emptyList();
-                }
-
+        handleRowsEvent(header, data, new RowchangeDataFactory() {
+            @Override
+            public List<RowChangedData> create(BinlogPosition binlogPosition, TableInfo tableInfo, List<String> colNames) {
                 List<String> incColNames = includedColumnNames(colNames, data.getColumnUsed());
-                List<FieldType> incColTypes = includedColumnTypes(this.columnTypes, data.getColumnUsed());
+                List<FieldType> incColTypes = includedColumnTypes(tableInfo.getColumnTypes(), data.getColumnUsed());
 
                 List<RowChangedData> rowChangedDataList = data.getRows().stream()
                         .map(row -> new RowChangedData(
                                 ChangeType.DELETE,
-                                database,
-                                table,
+                                tableInfo.getDatabase(),
+                                tableInfo.getTable(),
                                 header.getTimestamp(),
                                 convertDataRow(incColNames, incColTypes, row),
-                                currentEventBinLogPosition
+                                binlogPosition
                         ))
                         .collect(Collectors.toList());
-                listener.onDataChanged(rowChangedDataList);
+                return rowChangedDataList;
             }
-        } finally {
-            binlogPositionSaver.save(currentEventBinLogPosition);
-        }
+        });
     }
 
     @Override

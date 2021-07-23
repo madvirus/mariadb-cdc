@@ -58,19 +58,30 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
         while(readPacketData.remaining() > 0) {
             int fieldType = readPacketData.readInt(1);
             int fieldLen = readPacketData.readLengthEncodedInt();
-            if (fieldType != 4) {
-                readPacketData.skip(fieldLen);
-                continue;
+            switch(fieldType) {
+                case 4: // COLUMN NAME
+                    List<String> columnNames = readStringValues(readPacketData, fieldLen);
+                    fullMeta.setColumnNames(columnNames);
+                    break;
+                case 6: // ENUM STR VALUE
+                    List<String> enumValues = readStringValues(readPacketData, fieldLen);
+                    fullMeta.setEnumValues(enumValues);
+                    break;
+                default:
+                    readPacketData.skip(fieldLen);
             }
-            readPacketData.endBlock(readPacketData.getPacketLength() - (readPacketData.remaining() - fieldLen));
-            List<String> columnNames = new ArrayList<>();
-            while (readPacketData.remaining() > 0) {
-                columnNames.add(readPacketData.readLengthEncodedString());
-            }
-            fullMeta.setColumnNames(columnNames);
-            readPacketData.resetEndBlock();
         }
         return fullMeta;
+    }
+
+    private List<String> readStringValues(ReadPacketData readPacketData, int fieldLen) {
+        readPacketData.endBlock(readPacketData.getPacketLength() - (readPacketData.remaining() - fieldLen));
+        List<String> values = new ArrayList<>();
+        while (readPacketData.remaining() > 0) {
+            values.add(readPacketData.readLengthEncodedString());
+        }
+        readPacketData.resetEndBlock();
+        return values;
     }
 
     private int[] toMetaData(byte[] metadataBlock, FieldType[] fieldTypes) {
@@ -84,6 +95,8 @@ public class TableMapEventBinLogDataDeserializer implements BinLogDataDeserializ
                 case SET:
                 case STRING:
                     metadata[i] = ByteUtils.toBigEndianInt(metadataBlock, blockIdx, 2);
+                    blockIdx += 2;
+                    break;
                 case BIT:
                 case VARCHAR:
                 case NEWDECIMAL:

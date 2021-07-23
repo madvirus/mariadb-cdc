@@ -5,7 +5,7 @@ import mariadbcdc.binlog.reader.packet.binlog.BinLogData;
 import java.util.BitSet;
 import java.util.List;
 
-public class WriteRowsEvent implements BinLogData {
+public class WriteRowsEvent implements BinLogData, RowsEvent {
     private final long tableId;
     private final int numberOfColumns;
     private final BitSet columnUsed;
@@ -21,6 +21,7 @@ public class WriteRowsEvent implements BinLogData {
         this.rows = rows;
     }
 
+    @Override
     public long getTableId() {
         return tableId;
     }

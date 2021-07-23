@@ -26,10 +26,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
 
     private String currentBinlogFilename;
 
-    private String database;
-    private String table;
-    private byte[] columnTypes;
-    private List<String> columnNamesOfMetadata;
+    private TableInfos tableInfos = new TableInfos();
 
     public BinaryLogEventProcessor(MariadbCdcListener listener,
                                    CurrentBinlogFilenameGetter currentBinlogFilenameGetter,
@@ -72,32 +69,38 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
             }
             if (data instanceof TableMapEventData) {
                 TableMapEventData tableData = (TableMapEventData) data;
-                database = tableData.getDatabase();
-                table = tableData.getTable();
-                columnTypes = tableData.getColumnTypes();
-
-                columnNamesOfMetadata = Optional.ofNullable(tableData.getEventMetadata())
-                        .map(meta -> meta.getColumnNames())
-                        .filter(col -> !col.isEmpty())
-                        .orElse(null);
+                tableInfos.add(new TableInfo(tableData.getTableId(),
+                        tableData.getDatabase(), tableData.getTable(),
+                        tableData.getColumnTypes(),
+                        Optional.ofNullable(tableData.getEventMetadata())
+                                .map(meta -> meta.getColumnNames())
+                                .filter(col -> !col.isEmpty())
+                                .orElse(null)
+                ));
             }
             if (data instanceof WriteRowsEventData ||
                     data instanceof UpdateRowsEventData ||
                     data instanceof DeleteRowsEventData) {
-                if (hasPrecededDatabaseTableName()) {
-                    if (rowsEventDataIncluded()) {
-                        List<String> colNames = getColumnNames();
-                        if (colNames.size() > 0 && colNames.size() != columnTypes.length) {
-                            colNames = Collections.emptyList();
-                        }
-                        if (data instanceof WriteRowsEventData) {
-                            handleWriteRowsEventData(currentEventBinLogPosition, header, (WriteRowsEventData) data, colNames);
-                        } else if (data instanceof UpdateRowsEventData) {
-                            handleUpdateRowsEventData(currentEventBinLogPosition, header, (UpdateRowsEventData) data, colNames);
-                        } else if (data instanceof DeleteRowsEventData) {
-                            handleDeleteRowsEventData(currentEventBinLogPosition, header, (DeleteRowsEventData) data, colNames);
+                try {
+                    long tableId = getTableId(data);
+                    TableInfo tableInfo = tableInfos.getTableInfo(tableId);
+                    if (tableInfo != null && tableInfo.hasDatabaseTableName()) {
+                        if (rowsEventDataIncluded(tableInfo.getDatabase(), tableInfo.getTable())) {
+                            List<String> colNames = getColumnNames(tableInfo);
+                            if (colNames.size() > 0 && colNames.size() != tableInfo.getColumnTypes().length) {
+                                colNames = Collections.emptyList();
+                            }
+                            if (data instanceof WriteRowsEventData) {
+                                handleWriteRowsEventData(currentEventBinLogPosition, header, tableInfo, (WriteRowsEventData) data, colNames);
+                            } else if (data instanceof UpdateRowsEventData) {
+                                handleUpdateRowsEventData(currentEventBinLogPosition, header, tableInfo, (UpdateRowsEventData) data, colNames);
+                            } else if (data instanceof DeleteRowsEventData) {
+                                handleDeleteRowsEventData(currentEventBinLogPosition, header, tableInfo, (DeleteRowsEventData) data, colNames);
+                            }
                         }
                     }
+                } finally {
+                    tableInfos.clear();
                 }
             }
 
@@ -111,6 +114,18 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
             if (currentEventBinLogPosition != null) {
                 binlogPositionSaver.save(currentEventBinLogPosition);
             }
+        }
+    }
+
+    private long getTableId(EventData data) {
+        if (data instanceof WriteRowsEventData) {
+            return ((WriteRowsEventData)data).getTableId();
+        } else if (data instanceof UpdateRowsEventData) {
+            return ((UpdateRowsEventData)data).getTableId();
+        } else if (data instanceof DeleteRowsEventData) {
+            return ((DeleteRowsEventData)data).getTableId();
+        } else {
+            return -1;
         }
     }
 
@@ -130,32 +145,28 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         }
     }
 
-    private boolean rowsEventDataIncluded() {
+    private boolean rowsEventDataIncluded(String database, String table) {
         String dbTableName = database + "." + table;
         Boolean excluded = excludeFilters.getOrDefault(dbTableName, Boolean.FALSE);
         Boolean included = includeFilters.isEmpty() || includeFilters.getOrDefault(dbTableName, Boolean.FALSE);
         return !excluded && included;
     }
 
-    private List<String> getColumnNames() {
-        return columnNamesOfMetadata != null ? columnNamesOfMetadata :
-                hasPrecededDatabaseTableName() ? columnNamesGetter.getColumnNames(database, table) :
-                        Collections.emptyList();
+    private List<String> getColumnNames(TableInfo tableInfo) {
+        if (tableInfo.getColumnNamesOfMetadata() != null) return tableInfo.getColumnNamesOfMetadata();
+        if (tableInfo.hasDatabaseTableName()) return columnNamesGetter.getColumnNames(tableInfo.getDatabase(), tableInfo.getTable());
+        return Collections.emptyList();
     }
 
-    private boolean hasPrecededDatabaseTableName() {
-        return database != null && database.length() > 0 && table != null && table.length() > 0;
-    }
-
-    private void handleWriteRowsEventData(BinlogPosition currentEventBinLogPosition, EventHeader header, WriteRowsEventData rowData, List<String> colNames) {
+    private void handleWriteRowsEventData(BinlogPosition currentEventBinLogPosition, EventHeader header, TableInfo tableInfo, WriteRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
-        List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
+        List<ColumnType> incColTypes = includedColumnTypes(tableInfo.getColumnTypes(), rowData.getIncludedColumns());
 
         List<RowChangedData> rowChangedDataList = rowData.getRows().stream()
                 .map(row -> new RowChangedData(
                         ChangeType.INSERT,
-                        database,
-                        table,
+                        tableInfo.getDatabase(),
+                        tableInfo.getTable(),
                         header.getTimestamp(),
                         convertDataRow(incColNames, incColTypes, row),
                         currentEventBinLogPosition
@@ -164,17 +175,17 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         listener.onDataChanged(rowChangedDataList);
     }
 
-    private void handleUpdateRowsEventData(BinlogPosition currentEventBinLogPosition, EventHeader header, UpdateRowsEventData rowData, List<String> colNames) {
+    private void handleUpdateRowsEventData(BinlogPosition currentEventBinLogPosition, EventHeader header, TableInfo tableInfo, UpdateRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
-        List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
+        List<ColumnType> incColTypes = includedColumnTypes(tableInfo.getColumnTypes(), rowData.getIncludedColumns());
         List<String> incColNamesBeforeUpdate = includedColumnNames(colNames, rowData.getIncludedColumnsBeforeUpdate());
-        List<ColumnType> incColTypesBeforeUpdate = includedColumnTypes(this.columnTypes, rowData.getIncludedColumnsBeforeUpdate());
+        List<ColumnType> incColTypesBeforeUpdate = includedColumnTypes(tableInfo.getColumnTypes(), rowData.getIncludedColumnsBeforeUpdate());
 
         List<RowChangedData> rowChangedDataList = rowData.getRows().stream()
                 .map(row -> new RowChangedData(
                         ChangeType.UPDATE,
-                        database,
-                        table,
+                        tableInfo.getDatabase(),
+                        tableInfo.getTable(),
                         header.getTimestamp(),
                         convertDataRow(incColNames, incColTypes, row.getValue()),
                         convertDataRow(incColNamesBeforeUpdate, incColTypesBeforeUpdate, row.getKey()),
@@ -184,15 +195,15 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
         listener.onDataChanged(rowChangedDataList);
     }
 
-    private void handleDeleteRowsEventData(BinlogPosition currentEventBinLogPosition, EventHeader header, DeleteRowsEventData rowData, List<String> colNames) {
+    private void handleDeleteRowsEventData(BinlogPosition currentEventBinLogPosition, EventHeader header, TableInfo tableInfo, DeleteRowsEventData rowData, List<String> colNames) {
         List<String> incColNames = includedColumnNames(colNames, rowData.getIncludedColumns());
-        List<ColumnType> incColTypes = includedColumnTypes(this.columnTypes, rowData.getIncludedColumns());
+        List<ColumnType> incColTypes = includedColumnTypes(tableInfo.getColumnTypes(), rowData.getIncludedColumns());
 
         List<RowChangedData> rowChangedDataList = rowData.getRows().stream()
                 .map(row -> new RowChangedData(
                         ChangeType.DELETE,
-                        database,
-                        table,
+                        tableInfo.getDatabase(),
+                        tableInfo.getTable(),
                         header.getTimestamp(),
                         convertDataRow(incColNames, incColTypes, row),
                         currentEventBinLogPosition

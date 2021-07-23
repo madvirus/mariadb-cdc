@@ -3,6 +3,8 @@ package mariadbcdc.binlog.reader.packet.binlog.des;
 import mariadbcdc.binlog.reader.FieldType;
 import mariadbcdc.binlog.reader.io.ReadPacketData;
 import mariadbcdc.binlog.reader.packet.binlog.data.TableMapEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.sql.Time;
@@ -13,6 +15,7 @@ import java.time.LocalTime;
 import java.util.BitSet;
 
 public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataDeserializer {
+    private Logger logger = LoggerFactory.getLogger(getClass());
 
     protected Object[] readColumnValues(BitSet columnUsed, BitSet nullBitmap, TableMapEvent tableMapEvent, ReadPacketData readPacket) {
         int[] metadata = tableMapEvent.getMetadata();
@@ -27,7 +30,11 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
             }
             int valIdx = i - skipCount;
             if (!nullBitmap.get(valIdx)) {
-                values[valIdx] = readValue(fieldTypes[i], metadata[i], readPacket);
+                Object value = readValue(fieldTypes[i], metadata[i], readPacket, tableMapEvent);
+                logger.trace("read value after: idx={}, fieldType={}, metadata={}, remaining={}, value={}", i, fieldTypes[i], metadata[i], readPacket.remaining(), value);
+                values[valIdx] = value;
+            } else {
+                logger.trace("null value: idx={}, fieldType={}, metadata={}, remaining={}", i, fieldTypes[i], metadata[i], readPacket.remaining());
             }
         }
         return values;
@@ -42,7 +49,7 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         return result;
     }
 
-    private Object readValue(FieldType fieldType, int metadata, ReadPacketData readPacket) {
+    private Object readValue(FieldType fieldType, int metadata, ReadPacketData readPacket, TableMapEvent tableMapEvent) {
         switch (fieldType) {
             case BIT:
                 return readBit(metadata, readPacket);
@@ -61,7 +68,7 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
             case FLOAT:
                 return Float.intBitsToFloat(readPacket.readInt(4));
             case DOUBLE:
-                return Double.longBitsToDouble(readPacket.readInt(8));
+                return Double.longBitsToDouble(readPacket.readLong(8));
             case NEWDECIMAL:
                 return readNewDecimal(metadata, readPacket);
             case BLOB:
@@ -72,7 +79,7 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
             case STRING:
             case SET:
             case ENUM:
-                return readString(metadata, readPacket);
+                return readString(fieldType, metadata, readPacket, tableMapEvent);
             case VARCHAR:
             case VAR_STRING:
                 return readVarchar(metadata, readPacket);
@@ -176,9 +183,36 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         return readPacket.readString(len);
     }
 
-    private String readString(int metadata, ReadPacketData readPacket) {
-        int len = metadata & 0xFF;
-        return readPacket.readString(len);
+    private Object readString(FieldType fieldType, int metadata, ReadPacketData readPacket, TableMapEvent tableMapEvent) {
+        int length = 0;
+        if (metadata >= 256) {
+            int meta0 = metadata >> 8;
+            int meta1 = metadata & 0xFF;
+            if ((meta0 & 0x30) != 0x30) {
+                fieldType = FieldType.byValue(meta0 | 0x30);
+                length = meta1 | (((meta0 & 0x30) ^ 0x30) << 4);
+            } else {
+                if (meta0 == FieldType.ENUM.getValue() || meta0 == FieldType.SET.getValue()) {
+                    fieldType = FieldType.byValue(meta0);
+                }
+                length = meta1;
+            }
+        } else {
+            length = metadata;
+        }
+        if (fieldType == FieldType.ENUM) {
+            int idx = readPacket.readInt(length);
+            return tableMapEvent.getFullMeta().map(fm -> fm.getEnumValues())
+                    .filter(values -> values.size() > idx)
+                    .<Object>map(values -> values.get(idx))
+                    .orElse(idx);
+        } else if (fieldType == FieldType.SET) {
+            long idx = readPacket.readLong(length);
+            return idx; // TODO
+        } else { // STRING
+            int len = length <= 255 ? readPacket.readInt(1) : readPacket.readInt(2);
+            return readPacket.readString(len);
+        }
     }
 
     private LocalTime readTime(ReadPacketData readPacket) {

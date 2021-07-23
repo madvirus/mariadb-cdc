@@ -125,6 +125,7 @@ public class BinLogReader {
                 read();
             } catch (BinLogException e) {
                 if (state.isReading()) {
+                    logger.error("fail to reading: " + e.getMessage(), e);
                     state.toReadingFailed();
                     throw e;
                 }
@@ -157,7 +158,9 @@ public class BinLogReader {
     }
 
     private void updateLastEventTimestamp() {
-        lastEventTimestamp.set(System.currentTimeMillis());
+        long timestamp = System.currentTimeMillis();
+        lastEventTimestamp.set(timestamp);
+        logger.trace("lastEventTimestamp updated: {}", timestamp);
     }
 
     private void startReconnectThreadIfReconnectionEnabled() {
@@ -207,17 +210,23 @@ public class BinLogReader {
                             } else if (event.getHeader().getEventType() == BinlogEventType.HEARTBEAT_LOG_EVENT) {
                                 listener.onHeartbeatEvent(event.getHeader(), (HeartbeatEvent) event.getData());
                             } else if (event.getHeader().getEventType() == BinlogEventType.STOP_EVENT) {
+                                logger.info("receive STOP_EVENT then stop reading");
                                 state.toReadingStopped();
                                 listener.onStopEvent(event.getHeader(), (StopEvent) event.getData());
                             }
                         }
                     }
                 } catch (Exception ex) {
-                    logger.warn("[readerId={}] slaveServerId={} ignore exception: {}", readerId, slaveServerId, ex.getMessage());
+                    logger.warn(String.format("[readerId=%s] slaveServerId=%d ignore exception: %s", readerId, slaveServerId, ex.getMessage()),ex);
                 }
             }
+        } catch (Exception e) {
+            logger.error("unhandled exception: " + e.getMessage(), e);
         } finally {
-            state.toReadingStopped();
+            if (state.isReading()) {
+                logger.info("read() finally block: stop reading");
+                state.toReadingStopped();
+            }
         }
     }
 
@@ -341,6 +350,8 @@ public class BinLogReader {
     }
 
     static class State {
+        private Logger logger = LoggerFactory.getLogger(getClass());
+
         private AtomicReference<StateValue> value = new AtomicReference<>(StateValue.CREATED);
 
         public void toConnected() {
@@ -351,6 +362,7 @@ public class BinLogReader {
                     throw new IllegalStateException("invalid state: " + value.get());
                 }
             }
+            logger.info("state changed: CREATED -> CONNECTED");
         }
 
         public void toStarted() {
@@ -358,6 +370,7 @@ public class BinLogReader {
             if (!set) {
                 throw new IllegalStateException("invalid state: " + value.get());
             }
+            logger.info("state changed: CONNECTED -> STARTED");
         }
 
         public void toReading() {
@@ -365,6 +378,7 @@ public class BinLogReader {
             if (!set) {
                 throw new IllegalStateException("invalid state: " + value.get());
             }
+            logger.info("state changed: STARTED -> READING");
         }
 
         public void toReadingStopped() {
@@ -372,6 +386,7 @@ public class BinLogReader {
             if (!set) {
                 throw new IllegalStateException("invalid state: " + value.get());
             }
+            logger.info("state changed: READING -> READING_STOPPED");
         }
 
         public void toReadingFailed() {
@@ -379,6 +394,7 @@ public class BinLogReader {
             if (!set) {
                 throw new IllegalStateException("invalid state: " + value.get());
             }
+            logger.info("state changed: READING -> READING_FAILED");
         }
 
         public void toSessionClosed() {
