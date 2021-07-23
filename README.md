@@ -36,7 +36,7 @@ GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO cdc@'%'
 <dependency>
     <groupId>com.github.madvirus</groupId>
     <artifactId>mariadb-cdc</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.2</version>
 </dependency>
 ```
 
@@ -48,7 +48,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.madvirus:mariadb-cdc:1.0.0'
+    implementation 'com.github.madvirus:mariadb-cdc:1.0.2'
 }
 ```
 
@@ -241,7 +241,7 @@ If you want to change reader, use MariadbCdcConfig#setBinaryLogWrapperFactoryCla
 config.setBinaryLogWrapperFactoryClass(BinLogReaderBinaryLogWrapperFactory.class);
 ```
 
-### BinLogReaderBinaryLogWrapper contraints
+### BinLogReaderBinaryLogWrapper constraints
 
 * Only username/password authentication support
 * No SSL support
