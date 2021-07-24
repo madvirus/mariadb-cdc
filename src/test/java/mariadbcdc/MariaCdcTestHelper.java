@@ -3,6 +3,7 @@ package mariadbcdc;
 import mariadbcdc.binlog.BinLogReaderBinaryLogWrapperFactory;
 import org.testcontainers.containers.MariaDBContainer;
 
+import javax.swing.plaf.nimbus.State;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -73,7 +74,6 @@ public class MariaCdcTestHelper {
             throw new RuntimeException(ex);
         }
     }
-
 
 
     public Connection getConnection() throws SQLException {
@@ -169,6 +169,7 @@ public class MariaCdcTestHelper {
     }
 
     public void insertMember(long id, String name) {
+        withId(id).withName(name).insert();
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement("insert into test.member (id, name) values (?, ?)")
         ) {
@@ -207,13 +208,17 @@ public class MariaCdcTestHelper {
             }
             conn.commit();
         } catch (SQLException ex) {
-            if (conn != null) {
-                try {
-                    conn.rollback();
-                } catch (SQLException ex1) {
-                }
-            }
+            rollback(conn);
             throw new RuntimeException(ex);
+        }
+    }
+
+    private void rollback(Connection conn) {
+        if (conn != null) {
+            try {
+                conn.rollback();
+            } catch (SQLException ex1) {
+            }
         }
     }
 
@@ -228,12 +233,7 @@ public class MariaCdcTestHelper {
             }
             conn.commit();
         } catch (SQLException ex) {
-            if (conn != null) {
-                try {
-                    conn.rollback();
-                } catch (SQLException ex1) {
-                }
-            }
+            rollback(conn);
             throw new RuntimeException(ex);
         }
     }
@@ -321,6 +321,93 @@ public class MariaCdcTestHelper {
 
     public MemberInserter withId(Long id) {
         return new MemberInserter().withId(id);
+    }
+
+    public void insertItem(String itemId, String itemCode, String itemName) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement("insert into test.item (item_id, item_code, name) values (?, ?, ?)")
+        ) {
+            pstmt.setString(1, itemId);
+            pstmt.setString(2, itemCode);
+            pstmt.setString(3, itemName);
+            pstmt.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void insertItemDetail(String itemId, String itemCode, String desc) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement("insert into test.item_detail (item_id, item_code, description) values (?, ?, ?)")
+        ) {
+            pstmt.setString(1, itemId);
+            pstmt.setString(2, itemCode);
+            pstmt.setString(3, desc);
+            pstmt.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void updateItemCode(String itemId, String itemCode) {
+        Connection conn = null;
+        try {
+            conn = getConnection();
+            conn.setAutoCommit(false);
+            try (PreparedStatement pstmt = conn.prepareStatement("update test.item set item_code = ? where item_id = ?")) {
+                pstmt.setString(1, itemCode);
+                pstmt.setString(2, itemId);
+                pstmt.executeUpdate();
+            }
+            conn.commit();
+        } catch (SQLException ex) {
+            rollback(conn);
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void deleteItem(String itemId) {
+        Connection conn = null;
+        try {
+            conn = getConnection();
+            conn.setAutoCommit(false);
+            try (PreparedStatement pstmt = conn.prepareStatement("delete from test.item where item_id = ?")) {
+                pstmt.setString(1, itemId);
+                pstmt.executeUpdate();
+            }
+            conn.commit();
+        } catch (SQLException ex) {
+            rollback(conn);
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public Item selectItem(String itemId) throws SQLException {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement("select * from test.item where item_id = ?")) {
+            pstmt.setString(1, itemId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return new Item(rs.getString("item_id"), rs.getString("item_code"), rs.getString("name"));
+                } else {
+                    return null;
+                }
+            }
+        }
+    }
+
+    public ItemDetail selectItemDetail(String itemId) throws SQLException {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement("select * from test.item_detail where item_id = ?")) {
+            pstmt.setString(1, itemId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return new ItemDetail(rs.getString("item_id"), rs.getString("item_code"), rs.getString("description"));
+                } else {
+                    return null;
+                }
+            }
+        }
     }
 
     public class MemberInserter {
