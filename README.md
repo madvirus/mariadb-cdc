@@ -1,5 +1,7 @@
 # Usage
 
+> [If you can read korean then read README-ko.md](README-ko.md)
+
 ## MariaDB Configuration
 
 ### Enabling binary logging: binlog_format setting
