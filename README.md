@@ -1,6 +1,6 @@
 # Usage
 
-> [If you can read korean then read README-ko.md](README-ko.md)
+> [Korean Doc - README-ko.md](README-ko.md)
 
 ## MariaDB Configuration
 
