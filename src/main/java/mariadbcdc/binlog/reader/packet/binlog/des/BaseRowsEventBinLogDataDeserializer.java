@@ -252,6 +252,10 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         int months = value & 0b1111; // 6 to 9 bit
         value >>= 4;
         int years = value;
+        if (months == 0 || days == 0) {
+            // 00-00 month/date default value
+            return null;
+        }
         return LocalDate.of(years, months, days);
     }
 
@@ -294,6 +298,9 @@ public abstract class BaseRowsEventBinLogDataDeserializer implements BinLogDataD
         int year = yearMonth / 13;
         int month = yearMonth % 13;
         int fsp = readFsp(metadata, readPacket);
+        if (month == 0 || day == 0) {
+            return null;
+        }
         return LocalDateTime.of(year, month, day, hour, minute, second, fsp * 1000);
     }
 

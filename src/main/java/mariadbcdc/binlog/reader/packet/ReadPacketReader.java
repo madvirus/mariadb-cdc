@@ -15,13 +15,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class ReadPacketReader {
     private Logger logger = LoggerFactory.getLogger(getClass());
+    private static final int MAX_PACKET_LENGTH = 16777215;
 
     private PacketIO packetIO;
-    private byte[] buff = new byte[16777215];
+    private byte[] buff = new byte[MAX_PACKET_LENGTH];
+
 
     public ReadPacketReader(PacketIO packetIO) {
         this.packetIO = packetIO;
@@ -30,9 +33,10 @@ public class ReadPacketReader {
     public ReadPacketData readPacketData() {
         int packetLength = packetIO.readInt(3);
         int sequenceNumber = packetIO.readInt(1);
-        packetIO.readBytes(buff, 0, packetLength);
 
-        ReadPacketData readPacketData = new ReadPacketData(packetLength, sequenceNumber, buff);
+        ReadPacketData readPacketData = packetLength == MAX_PACKET_LENGTH ?
+                readMultiplePacketChunk(packetLength, sequenceNumber) :
+                readSinglePacketChunk(packetLength, sequenceNumber);
 
         if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder();
@@ -40,6 +44,24 @@ public class ReadPacketReader {
             logger.trace("read packet data: {}", sb.toString());
         }
         return readPacketData;
+    }
+
+    private ReadPacketData readSinglePacketChunk(int packetLength, int sequenceNumber) {
+        packetIO.readBytes(buff, 0, packetLength);
+        return new ReadPacketData(packetLength, sequenceNumber, buff);
+    }
+
+    private ReadPacketData readMultiplePacketChunk(int packetLength, int sequenceNumber) {
+        byte[] result = new byte[packetLength];
+        packetIO.readBytes(result, 0, packetLength);
+        int chunkLen;
+        do {
+            chunkLen = packetIO.readInt(3);
+            packetIO.readInt(1);
+            result = Arrays.copyOf(result, result.length + chunkLen);
+            packetIO.readBytes(result, result.length - chunkLen, chunkLen);
+        } while (chunkLen == MAX_PACKET_LENGTH);
+        return new ReadPacketData(result.length, sequenceNumber, result);
     }
 
     public ReadPacket read(int clientCapabilities) {
