@@ -3,7 +3,6 @@ package mariadbcdc;
 import mariadbcdc.binlog.BinLogReaderBinaryLogWrapperFactory;
 import org.testcontainers.containers.MariaDBContainer;
 
-import javax.swing.plaf.nimbus.State;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -170,15 +169,6 @@ public class MariaCdcTestHelper {
 
     public void insertMember(long id, String name) {
         withId(id).withName(name).insert();
-        try (Connection conn = getConnection();
-             PreparedStatement pstmt = conn.prepareStatement("insert into test.member (id, name) values (?, ?)")
-        ) {
-            pstmt.setLong(1, id);
-            pstmt.setString(2, name);
-            pstmt.executeUpdate();
-        } catch (SQLException ex) {
-            throw new RuntimeException(ex);
-        }
     }
 
     public void insertMemberWithBirth(String name, String email, LocalDate birth) {
@@ -477,7 +467,6 @@ public class MariaCdcTestHelper {
             } catch (SQLException ex) {
                 throw new RuntimeException(ex);
             }
-
         }
     }
 }

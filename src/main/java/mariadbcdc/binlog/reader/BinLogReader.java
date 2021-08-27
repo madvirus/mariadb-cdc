@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -80,12 +81,13 @@ public class BinLogReader {
     }
 
     public void connect() {
+        logger.debug("[readerId={}] connecting", readerId);
         lock.lock();
         try {
             int trycnt = 1;
             while (true) {
                 try {
-                    session = new BinLogSession(connectionInfo);
+                    session = new BinLogSession(connectionInfo, readerId);
                     session.handshake();
 
                     if (heartbeatPeriod != null && !heartbeatPeriod.isNegative() && heartbeatPeriod.getSeconds() > 0) {
@@ -125,7 +127,7 @@ public class BinLogReader {
                 read();
             } catch (BinLogException e) {
                 if (state.isReading()) {
-                    logger.error("fail to reading: " + e.getMessage(), e);
+                    logger.error("[readerId=" + readerId + "] fail to reading: " + e.getMessage(), e);
                     state.toReadingFailed();
                     throw e;
                 }
@@ -133,6 +135,12 @@ public class BinLogReader {
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException interruptedException) {
+                }
+            }
+            if (isKeepReading()) {
+                try {
+                    TimeUnit.SECONDS.sleep(1);
+                } catch (InterruptedException e) {
                 }
             }
         }
@@ -160,7 +168,7 @@ public class BinLogReader {
     private void updateLastEventTimestamp() {
         long timestamp = System.currentTimeMillis();
         lastEventTimestamp.set(timestamp);
-        logger.trace("lastEventTimestamp updated: {}", timestamp);
+        logger.trace("[readerId={}] lastEventTimestamp updated: {}", readerId, timestamp);
     }
 
     private void startReconnectThreadIfReconnectionEnabled() {
@@ -173,7 +181,14 @@ public class BinLogReader {
 
     private void read() {
         try {
-            if (session == null) return;
+            if (session == null) {
+                logger.debug("[readerId={}] slaveServerId={} session is null, so return read() early", readerId, slaveServerId);
+                return;
+            }
+            if (state.isReadingStopped()) {
+                logger.debug("[readerId={}] slaveServerId={} reading stopped, so return read() early", readerId, slaveServerId);
+                return;
+            }
             state.toReading();
             while (state.isReading()) {
                 Either<ErrPacket, BinLogEvent> readEvent = session.readBinlog();
@@ -210,7 +225,7 @@ public class BinLogReader {
                             } else if (event.getHeader().getEventType() == BinlogEventType.HEARTBEAT_LOG_EVENT) {
                                 listener.onHeartbeatEvent(event.getHeader(), (HeartbeatEvent) event.getData());
                             } else if (event.getHeader().getEventType() == BinlogEventType.STOP_EVENT) {
-                                logger.info("receive STOP_EVENT then stop reading");
+                                logger.info("[readerId={}] receive STOP_EVENT then stop reading", readerId);
                                 state.toReadingStopped();
                                 listener.onStopEvent(event.getHeader(), (StopEvent) event.getData());
                             }
@@ -221,10 +236,10 @@ public class BinLogReader {
                 }
             }
         } catch (Exception e) {
-            logger.error("unhandled exception: " + e.getMessage(), e);
+            logger.error(String.format("[readerId=%s] unhandled exception: %s", readerId, e.getMessage()), e);
         } finally {
             if (state.isReading()) {
-                logger.info("read() finally block: stop reading");
+                logger.info("[readerId={}] read(): stop reading", readerId);
                 state.toReadingStopped();
             }
         }
@@ -349,20 +364,22 @@ public class BinLogReader {
         }
     }
 
-    static class State {
+    class State {
         private Logger logger = LoggerFactory.getLogger(getClass());
 
         private AtomicReference<StateValue> value = new AtomicReference<>(StateValue.CREATED);
 
         public void toConnected() {
             boolean set = value.compareAndSet(StateValue.CREATED, StateValue.CONNECTED);
-            if (!set) {
+            if (set) {
+                logger.debug("[readerId={}] state changed: CREATED -> CONNECTED", readerId);
+            }  else {
                 set = value.compareAndSet(StateValue.SESSION_CLOSED, StateValue.CONNECTED);
                 if (!set) {
                     throw new IllegalStateException("invalid state: " + value.get());
                 }
+                logger.debug("[readerId={}] state changed: SESSION_CLOSED -> CONNECTED", readerId);
             }
-            logger.info("state changed: CREATED -> CONNECTED");
         }
 
         public void toStarted() {
@@ -370,7 +387,7 @@ public class BinLogReader {
             if (!set) {
                 throw new IllegalStateException("invalid state: " + value.get());
             }
-            logger.info("state changed: CONNECTED -> STARTED");
+            logger.debug("[readerId={}] state changed: CONNECTED -> STARTED", readerId);
         }
 
         public void toReading() {
@@ -378,7 +395,7 @@ public class BinLogReader {
             if (!set) {
                 throw new IllegalStateException("invalid state: " + value.get());
             }
-            logger.info("state changed: STARTED -> READING");
+            logger.debug("[readerId={}] state changed: STARTED -> READING", readerId);
         }
 
         public void toReadingStopped() {
@@ -386,7 +403,7 @@ public class BinLogReader {
             if (!set) {
                 throw new IllegalStateException("invalid state: " + value.get());
             }
-            logger.info("state changed: READING -> READING_STOPPED");
+            logger.debug("[readerId={}] state changed: READING -> READING_STOPPED", readerId);
         }
 
         public void toReadingFailed() {
@@ -394,11 +411,12 @@ public class BinLogReader {
             if (!set) {
                 throw new IllegalStateException("invalid state: " + value.get());
             }
-            logger.info("state changed: READING -> READING_FAILED");
+            logger.debug("[readerId={}] state changed: READING -> READING_FAILED", readerId);
         }
 
         public void toSessionClosed() {
-            value.set(StateValue.SESSION_CLOSED);
+            StateValue oldValue = value.getAndSet(StateValue.SESSION_CLOSED);
+            logger.debug("[readerId={}] state changed: {} -> SESSION_CLOSED", readerId, oldValue.name());
         }
 
         public void toDisconnected() {
@@ -415,6 +433,10 @@ public class BinLogReader {
 
         public boolean isDisconnected() {
             return value.get() == StateValue.DISCONNECTED;
+        }
+
+        public boolean isReadingStopped() {
+            return value.get() == StateValue.READING_STOPPED;
         }
     }
 

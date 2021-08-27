@@ -39,6 +39,7 @@ public class BinLogReaderReconnectTest {
 
     @Test
     void reconnect() {
+        helper.truncateMember();
         BinLogReader reader1 = new BinLogReader(mariaDB.getHost(), mariaDB.getMappedPort(3306), "cdc", "cdc");
         reader1.setReaderId("READER1");
         try {
@@ -48,7 +49,7 @@ public class BinLogReaderReconnectTest {
             reader1.setSlaveServerId(9999L);
             reader1.setHeartbeatPeriod(Duration.ofSeconds(2));
             reader1.enableReconnection();
-            reader1.setKeepConnectionTimeout(Duration.ofSeconds(4));
+            reader1.setKeepConnectionTimeout(Duration.ofSeconds(5));
 
             reader1.connect();
             runAsync(() -> reader1.start());
@@ -68,12 +69,61 @@ public class BinLogReaderReconnectTest {
 
             helper.insertMember(2L, "name2");  // 연결 끊기고 추가
 
-            Sleeps.sleep(5);
+            Sleeps.sleep(3);
 
             helper.insertMember(3L, "name3");  // 재연결후 추가
 
+            Sleeps.sleep(3);
+
             assertThat(reader1.isReading()).isTrue();
             assertThat(binLogListener.getRows()).hasSize(3);
+            assertThat(binLogListener.getRows().get(0)[0]).isEqualTo(1L);
+            assertThat(binLogListener.getRows().get(0)[1]).isEqualTo("name1");
+            assertThat(binLogListener.getRows().get(1)[1]).isEqualTo("name2");
+            assertThat(binLogListener.getRows().get(2)[1]).isEqualTo("name3");
+        } finally {
+            if (reader1 != null) reader1.disconnect();
+        }
+    }
+
+    @Test
+    void noreconnect() {
+        helper.truncateMember();
+        BinLogReader reader1 = new BinLogReader(mariaDB.getHost(), mariaDB.getMappedPort(3306), "cdc", "cdc");
+        reader1.setReaderId("READER1");
+        try {
+            TestBinLogListener binLogListener = new TestBinLogListener();
+            reader1.setBinLogListener(binLogListener);
+
+            reader1.setSlaveServerId(9999L);
+            reader1.setHeartbeatPeriod(Duration.ofSeconds(2));
+
+            reader1.connect();
+            runAsync(() -> reader1.start());
+            Sleeps.sleep(1);
+            helper.insertMember(1L, "name1");  // 연걸 끊기기 전 insert
+
+            // 같은 슬레이브ID를 사용하는 다른 리더를 연결해서 강제 접속 해제
+            Sleeps.sleep(2);
+            BinLogReader reader2 = new BinLogReader(mariaDB.getHost(), mariaDB.getMappedPort(3306), "cdc", "cdc");
+            reader2.setReaderId("READER2");
+            reader2.setSlaveServerId(9999L);
+            reader2.connect();
+            runAsync(() -> reader2.start());
+            Sleeps.sleep(2);
+            reader2.disconnect(); // 다른 리더 종료
+            Sleeps.sleep(1);
+
+            helper.insertMember(2L, "name2");  // 연결 끊기고 추가
+
+            Sleeps.sleep(2);
+
+            helper.insertMember(3L, "name3");  // 연결 끊기고 추가
+
+            Sleeps.sleep(2);
+
+            assertThat(reader1.isReading()).isFalse();
+            assertThat(binLogListener.getRows()).hasSize(1);
             assertThat(binLogListener.getRows().get(0)[0]).isEqualTo(1L);
             assertThat(binLogListener.getRows().get(0)[1]).isEqualTo("name1");
         } finally {

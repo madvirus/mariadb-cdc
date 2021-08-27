@@ -48,6 +48,7 @@ public class BinLogReaderPositionTest {
 
     @Test
     void getPosition() {
+        helper.truncateMember();
         helper.insertMember("이름1", "이메일1");
         helper.insertMember("이름2", "이메일2");
         helper.insertMember("이름3", "이메일3");
@@ -61,6 +62,7 @@ public class BinLogReaderPositionTest {
 
     @Test
     void startWithPosition() {
+        helper.truncateMember();
         helper.insertMember("이름4", "이메일4");
         BinlogPosition realPos = helper.getCurrentPosition();
 

@@ -3,6 +3,7 @@ package mariadbcdc;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 public interface DataRow {
     String getString(String field);
@@ -29,4 +30,5 @@ public interface DataRow {
     boolean hasTableColumnNames();
 
     int getColumnCount();
+    List<String> getColumnNames();
 }

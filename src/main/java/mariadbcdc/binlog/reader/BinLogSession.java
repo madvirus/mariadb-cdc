@@ -43,10 +43,12 @@ class BinLogSession {
     private final WritePacketWriter writePacketWriter;
 
     private long slaveServerId;
+    private String readerId;
 
-    public BinLogSession(ConnectionInfo connectionInfo) {
+    public BinLogSession(ConnectionInfo connectionInfo, String readerId) {
         this.user = connectionInfo.getUser();
         this.password = connectionInfo.getPassword();
+        this.readerId = readerId;
         try {
             socket = new Socket(connectionInfo.getHost(), connectionInfo.getPort());
             is = new BufferedInputStream(socket.getInputStream());
@@ -84,19 +86,19 @@ class BinLogSession {
         if (binlogPosition < 4) {
             binlogPosition = 4;
         }
-        logger.info("fetch binlog filename/position: {}/{}", binlogFile, binlogPosition);
+        logger.info("[readerId={}] fetch binlog filename/position: {}/{}", readerId, binlogFile, binlogPosition);
         return new BinlogPosition(binlogFile, binlogPosition);
     }
 
     public void registerSlave(String binlogFile, long binlogPosition, long slaveServerId) {
         RegisterSlaveHandler handler = new RegisterSlaveHandler(clientCapabilities, readPacketReader, writePacketWriter);
         this.masterServerId = handler.getServerId();
-        logger.debug("serverId: {}", masterServerId);
+        logger.debug("[readerId={}] serverId: {}", readerId, masterServerId);
         checksum = handler.handleChecksum();
-        logger.debug("checksum: {}", checksum);
+        logger.debug("[readerId={}]  checksum: {}", readerId, checksum);
         handler.startBinlogDump(binlogFile, binlogPosition, slaveServerId);
         this.slaveServerId = slaveServerId;
-        logger.info("[slaveServerId={}] started binlog dump", slaveServerId);
+        logger.info("[readerId={}] [slaveServerId={}] started binlog dump", readerId, slaveServerId);
     }
 
     public Either<ErrPacket, BinLogEvent> readBinlog() {
@@ -107,7 +109,7 @@ class BinLogSession {
     }
 
     public void close() {
-        logger.debug("[slaveServerId={}] closing session", slaveServerId);
+        logger.debug("[readerId={}] [slaveServerId={}] closing session", readerId, slaveServerId);
         try {
             writePacketWriter.write(ComQuitPacket.INSTANCE);
         } catch (Exception e) {
@@ -124,6 +126,7 @@ class BinLogSession {
             socket.close();
         } catch (IOException e) {
         }
-        logger.debug("[slaveServerId={}] closed session", slaveServerId);
+        logger.debug("[readerId={}] [slaveServerId={}] closed session", readerId, slaveServerId);
     }
+
 }

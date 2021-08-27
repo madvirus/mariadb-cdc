@@ -17,7 +17,6 @@ public class BinLogReaderEventProcessor implements BinLogListener {
     private BinlogPositionSaver binlogPositionSaver;
     private ColumnNamesGetter columnNamesGetter;
     private SchemaChangeListener schemaChangeListener;
-    private int localDateTimeAdjustingHour;
 
     private Map<String, Boolean> includeFilters = Collections.emptyMap();
     private Map<String, Boolean> excludeFilters = Collections.emptyMap();
@@ -31,26 +30,11 @@ public class BinLogReaderEventProcessor implements BinLogListener {
                                       BinlogPositionSaver binlogPositionSaver,
                                       ColumnNamesGetter columnNamesGetter,
                                       SchemaChangeListener schemaChangeListener) {
-        this(listener,
-                currentBinlogFilenameGetter,
-                binlogPositionSaver,
-                columnNamesGetter,
-                schemaChangeListener,
-                0);
-    }
-
-    public BinLogReaderEventProcessor(MariadbCdcListener listener,
-                                      CurrentBinlogFilenameGetter currentBinlogFilenameGetter,
-                                      BinlogPositionSaver binlogPositionSaver,
-                                      ColumnNamesGetter columnNamesGetter,
-                                      SchemaChangeListener schemaChangeListener,
-                                      int localDateTimeAdjustingHour) {
         this.listener = listener;
         this.currentBinlogFilenameGetter = currentBinlogFilenameGetter;
         this.binlogPositionSaver = binlogPositionSaver;
         this.columnNamesGetter = columnNamesGetter;
         this.schemaChangeListener = schemaChangeListener;
-        this.localDateTimeAdjustingHour = localDateTimeAdjustingHour;
     }
 
     @Override
@@ -168,7 +152,7 @@ public class BinLogReaderEventProcessor implements BinLogListener {
     }
 
     private DataRow convertDataRow(List<String> colNames, List<FieldType> incColTypes, Object[] row) {
-        BinLogReaderDataRow dataRow = new BinLogReaderDataRow(localDateTimeAdjustingHour);
+        BinLogReaderDataRow dataRow = new BinLogReaderDataRow();
         for (int i = 0; i < row.length; i++) {
             dataRow.add(colNames.isEmpty() ? "col" + i : colNames.get(i),
                     incColTypes.isEmpty() ? null : incColTypes.get(i),
