@@ -3,6 +3,7 @@ package mariadbcdc.binlog;
 import mariadbcdc.*;
 import mariadbcdc.binlog.reader.BinLogLifecycleListener;
 import mariadbcdc.binlog.reader.BinLogReader;
+import mariadbcdc.binlog.reader.StartedBadPositionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,10 +56,7 @@ public class BinLogReaderBinaryLogWrapper implements BinaryLogWrapper {
             @Override
             public void onStarted() {
                 try {
-                    BinlogPosition position = reader.getPosition();
-                    listener.started(
-                            new BinlogPosition(position.getFilename(), position.getPosition())
-                    );
+                    notifyStarted(reader);
                 } finally {
                     latch.countDown();
                 }
@@ -80,10 +78,19 @@ public class BinLogReaderBinaryLogWrapper implements BinaryLogWrapper {
                     reader.start();
                 } catch (Exception e) {
                     logger.error("BinLogReader start failed: " + e.getMessage());
-                    try {
-                        listener.startFailed(e);
-                    } catch (Exception exception) {
-                        // ignore callback exception
+                    notifyStartFailed(e);
+                    if (config.isUsingLastPositionWhenBadPosition() && e instanceof StartedBadPositionException) {
+                        logger.info("BinLogReader restarting : " + config.getUser() + "@" + config.getHost() + ":" + config.getPort());
+                        reader.disconnect();
+                        reader.reset();
+                        reader.setStartBinlogPosition(null, 0L);
+                        reader.connect();
+                        try {
+                            reader.start();
+                        } catch(Exception e2) {
+                            logger.error("BinLogReader restart failed: " + e.getMessage());
+                            notifyStartFailed(e);
+                        }
                     }
                 } finally {
                     latch.countDown();
@@ -98,6 +105,21 @@ public class BinLogReaderBinaryLogWrapper implements BinaryLogWrapper {
         }
         if (reader.isReading()) {
             this.binLogReader = reader;
+        }
+    }
+
+    private void notifyStarted(BinLogReader reader) {
+        BinlogPosition position = reader.getPosition();
+        listener.started(
+                new BinlogPosition(position.getFilename(), position.getPosition())
+        );
+    }
+
+    private void notifyStartFailed(Exception e) {
+        try {
+            listener.startFailed(e);
+        } catch (Exception exception) {
+            // ignore callback exception
         }
     }
 

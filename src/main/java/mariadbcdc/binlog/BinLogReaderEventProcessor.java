@@ -3,7 +3,6 @@ package mariadbcdc.binlog;
 import mariadbcdc.*;
 import mariadbcdc.binlog.reader.BinLogListener;
 import mariadbcdc.binlog.reader.FieldType;
-import mariadbcdc.binlog.reader.packet.ErrPacket;
 import mariadbcdc.binlog.reader.packet.binlog.BinLogHeader;
 import mariadbcdc.binlog.reader.packet.binlog.data.*;
 
@@ -35,11 +34,6 @@ public class BinLogReaderEventProcessor implements BinLogListener {
         this.binlogPositionSaver = binlogPositionSaver;
         this.columnNamesGetter = columnNamesGetter;
         this.schemaChangeListener = schemaChangeListener;
-    }
-
-    @Override
-    public void onErr(ErrPacket err) {
-        BinLogListener.super.onErr(err);
     }
 
     @Override

@@ -122,9 +122,11 @@ public class BinLogReader {
     public void start() {
         registerSlave();
         startReconnectThreadIfReconnectionEnabled();
-        while(isKeepReading()) {
+        while (isKeepReading()) {
             try {
                 read();
+            } catch (StartedBadPositionException e) {
+                throw e;
             } catch (BinLogException e) {
                 if (state.isReading()) {
                     logger.error("[readerId=" + readerId + "] fail to reading: " + e.getMessage(), e);
@@ -183,24 +185,29 @@ public class BinLogReader {
         try {
             if (session == null) {
                 logger.debug("[readerId={}] slaveServerId={} session is null, so return read() early", readerId, slaveServerId);
-                return;
             }
             if (state.isReadingStopped()) {
                 logger.debug("[readerId={}] slaveServerId={} reading stopped, so return read() early", readerId, slaveServerId);
-                return;
             }
             state.toReading();
             while (state.isReading()) {
                 Either<ErrPacket, BinLogEvent> readEvent = session.readBinlog();
                 updateLastEventTimestamp();
-                try {
-                    if (readEvent.isLeft()) {
-                        ErrPacket errPacket = readEvent.getLeft();
-                        logger.debug("[readerId={}] slaveServerId={} ErrPacket: {}", readerId, slaveServerId, errPacket);
-                        listener.onErr(errPacket);
-                    } else {
-                        BinLogEvent event = readEvent.getRight();
 
+                if (readEvent.isLeft()) {
+                    ErrPacket errPacket = readEvent.getLeft();
+                    logger.debug("[readerId={}] slaveServerId={} ErrPacket: {}", readerId, slaveServerId, errPacket);
+                    if (errPacket.getErrorCode() == 1236) { // bad position
+                        throw new StartedBadPositionException(errPacket.getErrorMessage());
+                    }
+                    try {
+                        listener.onErr(errPacket);
+                    } catch (Exception ex) {
+                        logger.warn(String.format("[readerId=%s] slaveServerId=%d ignore exception: %s", readerId, slaveServerId, ex.getMessage()), ex);
+                    }
+                } else {
+                    BinLogEvent event = readEvent.getRight();
+                    try {
                         if (event.getHeader().getEventType() == BinlogEventType.ROTATE_EVENT) {
                             RotateEvent rotateEvent = (RotateEvent) event.getData();
                             this.binlogFile = rotateEvent.getFilename();
@@ -230,12 +237,15 @@ public class BinLogReader {
                                 listener.onStopEvent(event.getHeader(), (StopEvent) event.getData());
                             }
                         }
+                    } catch (Exception ex) {
+                        logger.warn(String.format("[readerId=%s] slaveServerId=%d ignore exception: %s", readerId, slaveServerId, ex.getMessage()), ex);
                     }
-                } catch (Exception ex) {
-                    logger.warn(String.format("[readerId=%s] slaveServerId=%d ignore exception: %s", readerId, slaveServerId, ex.getMessage()),ex);
                 }
             }
         } catch (Exception e) {
+            if (e instanceof StartedBadPositionException) {
+                throw e;
+            }
             logger.error(String.format("[readerId=%s] unhandled exception: %s", readerId, e.getMessage()), e);
         } finally {
             if (state.isReading()) {
@@ -279,6 +289,10 @@ public class BinLogReader {
         }
     }
 
+    public void reset() {
+        state = new State();
+    }
+
     private void stopReconnectThread() {
         if (reconnectThread != null) {
             reconnectThread.stopReconnect();
@@ -299,7 +313,7 @@ public class BinLogReader {
      * Max time to keep connection without no event receiving.
      * This value is used only if reconnection is enabled.
      * BinLogReader check last event received time and reconnect to server if no event received in keepConnectionTimeout
-     *
+     * <p>
      * This valud must be greater than heartbeatPeriod.
      *
      * @param keepConnectionTimeout
@@ -318,13 +332,14 @@ public class BinLogReader {
 
     class ReconnectThread extends Thread {
         private boolean reconnectRunning = true;
+
         public ReconnectThread() {
         }
 
         @Override
         public void run() {
             reconnectRunning = true;
-            while(reconnectRunning) {
+            while (reconnectRunning) {
                 try {
                     Thread.sleep(keepConnectionTimeout.toMillis());
                     if (System.currentTimeMillis() - lastEventTimestamp.get() > keepConnectionTimeout.toMillis()) {
@@ -373,7 +388,7 @@ public class BinLogReader {
             boolean set = value.compareAndSet(StateValue.CREATED, StateValue.CONNECTED);
             if (set) {
                 logger.debug("[readerId={}] state changed: CREATED -> CONNECTED", readerId);
-            }  else {
+            } else {
                 set = value.compareAndSet(StateValue.SESSION_CLOSED, StateValue.CONNECTED);
                 if (!set) {
                     throw new IllegalStateException("invalid state: " + value.get());

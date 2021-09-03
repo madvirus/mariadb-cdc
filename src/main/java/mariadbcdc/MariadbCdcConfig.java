@@ -11,6 +11,8 @@ public class MariadbCdcConfig {
     private Duration heartbeatPeriod;
     private Long serverId;
 
+    private boolean usingLastPositionWhenBadPosition;
+
     private String[] excludeFilters;
     private String[] includeFilters;
 
@@ -82,5 +84,13 @@ public class MariadbCdcConfig {
 
     public void setBinaryLogWrapperFactoryClass(Class<? extends BinaryLogWrapperFactory> binaryLogWrapperFactoryClass) {
         this.binaryLogWrapperFactoryClass = binaryLogWrapperFactoryClass;
+    }
+
+    public void setUsingLastPositionWhenBadPosition(boolean usingLastPositionWhenBadPosition) {
+        this.usingLastPositionWhenBadPosition = usingLastPositionWhenBadPosition;
+    }
+
+    public boolean isUsingLastPositionWhenBadPosition() {
+        return usingLastPositionWhenBadPosition;
     }
 }
