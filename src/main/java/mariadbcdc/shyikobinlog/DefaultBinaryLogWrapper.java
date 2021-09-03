@@ -2,6 +2,7 @@ package mariadbcdc.shyikobinlog;
 
 import com.github.shyiko.mysql.binlog.BinaryLogClient;
 import com.github.shyiko.mysql.binlog.event.deserialization.EventDeserializer;
+import com.github.shyiko.mysql.binlog.network.ServerException;
 import mariadbcdc.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,6 +66,25 @@ public class DefaultBinaryLogWrapper implements BinaryLogWrapper {
                     latch.countDown();
                 }
             }
+
+            @Override
+            public void onCommunicationFailure(BinaryLogClient client, Exception ex) {
+                if (ex instanceof ServerException) {
+                    ServerException sex = (ServerException) ex;
+                    if (sex.getErrorCode() == 1236) { // bad position
+                        try {
+                            listener.startFailed(ex);
+                            if (config.isUsingLastPositionWhenBadPosition()) {
+                                client.disconnect();
+                                client.setBinlogFilename(null);
+                                client.connect();
+                            }
+                        } catch (Exception e2) {
+                            // ignore startFailed callback exception
+                        }
+                    }
+                }
+            }
         });
 
         new Thread(new Runnable() {
@@ -74,11 +94,6 @@ public class DefaultBinaryLogWrapper implements BinaryLogWrapper {
                     client.connect();
                 } catch (Exception e) {
                     logger.error("mariadbCdc start failed : " + e.getMessage());
-                    try {
-                        listener.startFailed(e);
-                    } catch (Exception e2) {
-                        // ignore startFailed callback exception
-                    }
                     latch.countDown();
                 }
             }

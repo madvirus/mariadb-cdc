@@ -109,6 +109,7 @@ public class MariadbCdc_Binlog_BadSavedPosition_Test {
         helper.insertMember("name3", "email3");
         Sleeps.sleep(1);
         helper.insertMember("name4", "email4");
+        Sleeps.sleep(1);
         cdc.stop();
 
         SoftAssertions.assertSoftly(s -> {

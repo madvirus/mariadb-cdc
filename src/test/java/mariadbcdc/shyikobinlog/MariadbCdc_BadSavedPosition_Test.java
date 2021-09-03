@@ -80,6 +80,7 @@ public class MariadbCdc_BadSavedPosition_Test {
         Sleeps.sleep(1);
         cdc.stop();
 
+        assertThat(events).hasSize(3);
         assertThat(events.get(1)).startsWith("start failed:");
     }
 
@@ -109,6 +110,7 @@ public class MariadbCdc_BadSavedPosition_Test {
         helper.insertMember("name3", "email3");
         Sleeps.sleep(1);
         helper.insertMember("name4", "email4");
+        Sleeps.sleep(1);
         cdc.stop();
 
         SoftAssertions.assertSoftly(s -> {
