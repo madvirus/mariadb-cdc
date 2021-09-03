@@ -38,7 +38,7 @@ GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO cdc@'%'
 <dependency>
     <groupId>com.github.madvirus</groupId>
     <artifactId>mariadb-cdc</artifactId>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
 </dependency>
 ```
 
@@ -50,7 +50,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.madvirus:mariadb-cdc:1.0.3'
+    implementation 'com.github.madvirus:mariadb-cdc:1.0.4'
 }
 ```
 
@@ -81,7 +81,8 @@ JdbcColumnNamesGetter columnNamesGetter = new JdbcColumnNamesGetter(
             "localhost", // host
             3307, // port
             "cdc", // cdc user
-            "password"); // password 
+            "password", // password
+           "bin.pos"); // bin position trace file
 
 MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);
 ```
@@ -227,6 +228,50 @@ public void onDataChanged(List<RowChangedData> list) {
 MariaDB 10.5 supports binlog_row_metadata config variable.
 When binlog_row_metadata is FULL, then all metadata (including column names) is logged.
 So if binlog_row_metadata is FULL, no ColumnNamesGetter is required.
+
+### usingLastPositionWhenBadPosition option (since 1.0.4)
+
+If you use bad position, then MariaCdc fail to start.
+
+```java
+MariadbCdcConfig config = new MariadbCdcConfig(
+                "localhost", // host
+                3306, // port
+                "cdc", // user for cdc
+                "password", // password
+                "bin.pos");
+
+// If bin.pos file had bad position
+MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);
+
+cdc.setMariadbCdcListener(new MariadbCdcListener() {
+    @Override
+    public void startFailed(Exception e) {
+        // startFailed() callback invoked
+    }
+    ...
+});
+
+cdc.start(); 
+```
+
+If you want to restart from last position when you use bad position, use true as usingLastPositionWhenBadPosition option value.
+
+```java
+MariadbCdcConfig config = new MariadbCdcConfig(
+                "localhost", // host
+                3306, // port
+                "cdc", // user for cdc
+                "password", // password
+                "bin.pos");
+
+// use true value for usingLastPositionWhenBadPosition
+config.setUsingLastPositionWhenBadPosition(true);
+
+MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);
+
+cdc.start(); // restart from last position if bin.pos file had bad position
+```
 
 ## Binlog reader implementation
 

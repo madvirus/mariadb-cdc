@@ -36,7 +36,7 @@ GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO cdc@'%'
 <dependency>
     <groupId>com.github.madvirus</groupId>
     <artifactId>mariadb-cdc</artifactId>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
 </dependency>
 ```
 
@@ -48,7 +48,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.madvirus:mariadb-cdc:1.0.3'
+    implementation 'com.github.madvirus:mariadb-cdc:1.0.4'
 }
 ```
 
@@ -225,6 +225,50 @@ public void onDataChanged(List<RowChangedData> list) {
 마리아DB 10.5는 binlog_row_metadata 설정 변수를 지원한다.
 binlog_row_metadata 값이 FULL이면 (칼럼 이름을 포함한) 모든 메타데이터를 기록한다.
 그래서 binlog_row_metadata가 FULL이면 ColumnNamesGetter가 필요 없다.
+
+### usingLastPositionWhenBadPosition 옵션 (1.0.4 버전부터)
+
+잘못된 포지션을 사용하면 MariaCdc는 시작에 실패한다.
+
+```java
+MariadbCdcConfig config = new MariadbCdcConfig(
+                "localhost", // host
+                3306, // port
+                "cdc", // user for cdc
+                "password", // password
+                "bin.pos");
+
+// 만약 bin.pos 파일이 잘못된 포지션을 가지면
+MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);
+
+cdc.setMariadbCdcListener(new MariadbCdcListener() {
+    @Override
+    public void startFailed(Exception e) {
+        // startFailed() 콜백이 불림
+    }
+    ...
+});
+
+cdc.start(); 
+```
+
+잘못된 포지션을 사용할 때 최근 포지션부터 재시작하고 싶으면 usingLastPositionWhenBadPosition 옵션 값으로 true를 사용하면 된다.
+
+```java
+MariadbCdcConfig config = new MariadbCdcConfig(
+                "localhost", // host
+                3306, // port
+                "cdc", // user for cdc
+                "password", // password
+                "bin.pos");
+
+// usingLastPositionWhenBadPosition 옵션 값으로 true 사용
+config.setUsingLastPositionWhenBadPosition(true);
+
+MariadbCdc cdc = new MariadbCdc(config, columnNamesGetter);
+
+cdc.start(); // bin.pos 파일이 잘못된 포지션을 가지면 마지막 포지션부터 재시작
+```
 
 ## Binlog 리더구현체
 
