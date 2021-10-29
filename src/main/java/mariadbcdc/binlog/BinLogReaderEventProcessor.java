@@ -210,7 +210,7 @@ public class BinLogReaderEventProcessor implements BinLogListener {
         final BinlogPosition currentEventBinLogPosition =
                 new BinlogPosition(currentBinlogFilename, header.getNextPosition());
         try {
-            listener.onXid(data.getXid());
+            listener.onXid(currentEventBinLogPosition, data.getXid());
         } finally {
             binlogPositionSaver.save(currentEventBinLogPosition);
         }

@@ -101,7 +101,7 @@ public class BinaryLogEventProcessor implements BinaryLogClient.EventListener {
             }
 
             if (data instanceof XidEventData) {
-                listener.onXid(((XidEventData) data).getXid());
+                listener.onXid(currentEventBinLogPosition, ((XidEventData) data).getXid());
             }
         } catch (Exception ex) {
             // ignore listener thrown exception

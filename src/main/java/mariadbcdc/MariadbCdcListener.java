@@ -14,6 +14,10 @@ public interface MariadbCdcListener {
     default void onDataChanged(List<RowChangedData> list) {
     }
 
+    default void onXid(BinlogPosition nextPosition, Long xid) {
+        onXid(xid);
+    }
+
     default void onXid(Long xid) {
     }
 
