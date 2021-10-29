@@ -38,7 +38,7 @@ GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO cdc@'%'
 <dependency>
     <groupId>com.github.madvirus</groupId>
     <artifactId>mariadb-cdc</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.4.1</version>
 </dependency>
 ```
 
@@ -50,7 +50,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.madvirus:mariadb-cdc:1.0.4'
+    implementation 'com.github.madvirus:mariadb-cdc:1.0.4.1'
 }
 ```
 
@@ -149,6 +149,17 @@ cdc.setMariadbCdcListener(new MariadbCdcListener() {
         // transaction commit log 
     }
 
+    /* if you want to use next bin log position value on xid,
+       then use the onXid(BinlogPosition, Long) method.
+       If you implement both onXid(Long) and onXid(BinlogPosition, Long),
+       then only onXid(BinlogPosition, Long) is called.
+       
+    @Override
+    public void onXid(BinlogPosition nextPosition, Long xid) {
+        // transaction commit log
+    }
+    */
+    
     @Override
     public void stopped() {
         // cdc stopped

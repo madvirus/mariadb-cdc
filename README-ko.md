@@ -36,7 +36,7 @@ GRANT REPLICATION SLAVE, REPLICATION CLIENT, SELECT ON *.* TO cdc@'%'
 <dependency>
     <groupId>com.github.madvirus</groupId>
     <artifactId>mariadb-cdc</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.4.1</version>
 </dependency>
 ```
 
@@ -48,7 +48,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.madvirus:mariadb-cdc:1.0.4'
+    implementation 'com.github.madvirus:mariadb-cdc:1.0.4.1'
 }
 ```
 
@@ -145,6 +145,17 @@ cdc.setMariadbCdcListener(new MariadbCdcListener() {
     public void onXid(Long xid) {
         // 트랜잭션 커밋 로그 
     }
+
+    /* xid 이벤트에서 다음 바이너리 로그 포지션 값을 사용하고 싶으면
+       onXid(BinlogPosition, Long) 메서드를 사용하면 된다.
+       onXid(Long)와 onXid(BinlogPosition, Long) 메서드를 둘 다 구현하면
+       onXid(BinlogPosition, Long) 메서드만 호출된다.
+       
+    @Override
+    public void onXid(BinlogPosition nextPosition, Long xid) {
+        // 트랜잭션 커밋 로그
+    }
+    */
 
     @Override
     public void stopped() {
